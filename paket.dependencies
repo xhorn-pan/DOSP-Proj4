@@ -1,0 +1,10 @@
+source https://api.nuget.org/v3/index.json
+
+storage: none
+framework: net5.0
+nuget Akka
+nuget Akka.Cluster
+nuget Akka.Cluster.Tools
+nuget Akka.DistributedData
+nuget Akka.FSharp
+nuget Akka.Serialization.Hyperion
