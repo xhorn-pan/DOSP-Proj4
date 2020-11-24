@@ -32,3 +32,22 @@ module Messages =
     let RegisterUser (u: User) = { Cmd = UserCmdType.Register; User = u }
     let LoginUser (u: User) = { Cmd = UserCmdType.Login; User = u }
     let LogoutUser (u: User) = { Cmd = UserCmdType.Logout; User = u }
+
+    type FollowType =
+        | Follow
+        | Unfollow
+
+    type FollowCmd =
+        { Cmd: FollowType
+          UserId: int64
+          FollowId: int64 }
+
+    let FollowUserCmd (u: User) (f: User) =
+        { Cmd = Follow
+          UserId = u.Id
+          FollowId = f.Id }
+
+    let UnfollowUserCmd (u: User) (f: User) =
+        { Cmd = Unfollow
+          UserId = u.Id
+          FollowId = f.Id }

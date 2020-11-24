@@ -12,9 +12,10 @@ let main argv =
     let system = ActorSystem.Create("project4", config)
     // spawn system "server" <| ServerActor |> ignore
 
-    let userRouteConfig = SpawnOption.Router(Routing.FromConfig.Instance)
+    let pRouteConfig = SpawnOption.Router(Routing.FromConfig.Instance)
     //let uRef = 
-    spawnOpt system "service-user" UserActor [userRouteConfig] |> ignore
+    spawnOpt system "service-user" UserActor [pRouteConfig] |> ignore
+    spawnOpt system "service-follow" FollowActor [pRouteConfig] |> ignore
 
     system.WhenTerminated.Wait()
     0
