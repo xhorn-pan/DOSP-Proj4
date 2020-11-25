@@ -10,34 +10,22 @@ module Actors =
     open Akka.DistributedData
     open DOSP.P4.Common.Messages
 
-    // Write Consistency Policy
-    let writeThree = WriteTo(3, TimeSpan.FromSeconds 3.)
+    // Read and Write Consistency Policy
+    let getUserKey (id: int64) = (id / 100L).ToString()
+    let rcPolicy = ReadMajority(TimeSpan.FromSeconds 3.)
+    let readLocal = ReadLocal.Instance
+    let wcPolicy = WriteMajority(TimeSpan.FromSeconds 3.)
     let writeLocal = WriteLocal.Instance
 
     type UserSave = UserSave of User * IActorRef * IWriteConsistency
     type DBPut = DBPut of Async<IUpdateResponse> * IActorRef
+    type DBGet = DBGet of Async<IGetResponse> * IKey * IActorRef
 
-    let DBPutActor (mailbox: Actor<DBPut>) =
-        let rec loop () =
-            actor {
-                let! (DBPut (task, client)) = mailbox.Receive()
+    let getChildActor name cActor (mailbox: Actor<_>) =
+        let aRef = mailbox.Context.Child(name)
+        if aRef.IsNobody() then spawn mailbox name cActor else aRef
 
-                let resp = Async.RunSynchronously task
-
-                logInfof mailbox "send %A to %A" resp (client.Path.ToStringWithAddress())
-                // if resp.IsSuccessful then
-                client <! resp
-
-                return! loop ()
-            }
-
-        loop ()
-
-    let getDBPutChild (mailbox: Actor<_>) =
-        let aRef = mailbox.Context.Child("child")
-        if aRef.IsNobody() then spawn mailbox "child" DBPutActor else aRef
-
-    let UserActor (mailbox: Actor<UserCmd>) =
+    let userRegisterActor (mailbox: Actor<User * IActorRef>) =
         let node =
             Cluster.Get(mailbox.Context.System).SelfUniqueAddress
 
@@ -46,26 +34,86 @@ module Actors =
 
         let rec loop () =
             actor {
+                let! (user, client) = mailbox.Receive()
+                let wc = wcPolicy
+
+                let key =
+                    ORSetKey<string>("user-" + (getUserKey user.Id))
+
+                let set = ORSet.Create<User>(node, user)
+
+                let task: Async<IUpdateResponse> =
+                    replicator
+                    <? Update(key, set, wc, (fun old -> old.Merge(set)))
+
+                let resp = Async.RunSynchronously task
+
+                client <! resp
+
+                return! loop ()
+            }
+
+        loop ()
+
+    let userQueryActor (mailbox: Actor<User * IActorRef>) =
+        let node =
+            Cluster.Get(mailbox.Context.System).SelfUniqueAddress
+
+        let replicator =
+            DistributedData.Get(mailbox.Context.System).Replicator
+
+        let rec loop () =
+            actor {
+                let! (user, client) = mailbox.Receive()
+                let rc = rcPolicy
+
+                let key =
+                    ORSetKey<string>("user-" + (getUserKey user.Id))
+
+                let task: Async<IGetResponse> = replicator <? Get(key, rc)
+
+                let resp = Async.RunSynchronously task
+
+                logInfof mailbox "send %A to %A" resp (client.Path.ToStringWithAddress())
+
+                let d = resp.Get(key)
+
+                client <! d
+            }
+
+        loop ()
+
+    let UserActor (mailbox: Actor<UserCmd>) =
+        let rec loop () =
+            actor {
                 let! msg = mailbox.Receive()
+
+                let user = msg.User
+
+                let client = mailbox.Sender()
 
                 match msg.Cmd with
                 | Register -> // from client
-                    let user = msg.User
-                    let client = mailbox.Sender()
-                    let wc = writeLocal
-                    let key = ORSetKey<string>("user")
-                    let set = ORSet.Create<User>(node, user)
+                    let uActor =
+                        getChildActor "user-register" userRegisterActor mailbox
 
-                    let task: Async<IUpdateResponse> =
-                        replicator
-                        <? Update(key, set, wc, (fun old -> old.Merge(set)))
-
-                    let uRepRef = getDBPutChild mailbox
-                    uRepRef <! DBPut(task, client)
+                    uActor <! (user, client)
                 | Login -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
                 | Logout -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
 
                 return! loop ()
+            }
+
+        loop ()
+
+    let TweetActor (mailbox: Actor<Tweet>) =
+        let rec loop () =
+            actor {
+                let! msg = mailbox.Receive()
+
+                match msg.TwType with
+                | NewT -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+                | RT -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
             }
 
         loop ()
@@ -97,8 +145,8 @@ module Actors =
                         replicator
                         <? Update(key, set, wc, (fun old -> old.Merge(set)))
 
-                    let uRepRef = getDBPutChild mailbox
-                    uRepRef <! DBPut(task, client)
+                    let resp = Async.RunSynchronously task
+                    client <! resp
                     return! loop ()
                 | Unfollow ->
                     logInfof mailbox "Unfollow is not impl"
@@ -106,7 +154,6 @@ module Actors =
             }
 
         loop ()
-
 
     let ServerActor (mailbox: Actor<obj>) =
         let cluster = Cluster.Get(mailbox.Context.System)

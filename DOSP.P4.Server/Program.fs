@@ -16,6 +16,7 @@ let main argv =
     //let uRef = 
     spawnOpt system "service-user" UserActor [pRouteConfig] |> ignore
     spawnOpt system "service-follow" FollowActor [pRouteConfig] |> ignore
+    spawnOpt system "service-tweet" TweetActor [pRouteConfig] |> ignore
 
     system.WhenTerminated.Wait()
     0

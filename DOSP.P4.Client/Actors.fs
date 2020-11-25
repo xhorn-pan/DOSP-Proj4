@@ -8,12 +8,16 @@ module Actors =
     open Akka.Cluster
     open DOSP.P4.Common.Messages
 
+
     let ClientActor (mailbox: Actor<obj>) =
         let uRef =
             mailbox.Context.System.ActorSelection("akka.tcp://project4@localhost:8777/user/service-user")
 
         let fRef =
             mailbox.Context.System.ActorSelection("akka.tcp://project4@localhost:8777/user/service-follow")
+
+        let tRef =
+            mailbox.Context.System.ActorSelection("akka.tcp://project4@localhost:8777/user/service-tweet")
 
         let rec loop () =
             actor {
@@ -22,6 +26,7 @@ module Actors =
                 match msg with
                 | :? UserCmd -> uRef <! msg
                 | :? FollowCmd -> fRef <! msg
+                | :? Tweet -> tRef <! msg
                 | :? ClusterEvent.IMemberEvent -> logInfof mailbox "Cluster event %A" msg
                 //| :? User as msg -> gwRef <! msg
                 | _ -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
