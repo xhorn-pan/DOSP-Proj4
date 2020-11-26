@@ -18,18 +18,26 @@ let main argv =
     // |> List.iter (fun idx ->
     //     client <! (CreateUser idx "Xhorn.Pan" |> RegisterUser)
     // )
-    
+    System.Threading.Thread.Sleep 3000
     let u1 = CreateUser 1014837012L "Sergey Mutin"
+    let u2 = CreateUser 1014837013L "Sergey Mutio"
     let t1 = PubTweet u1 "test test test"
-    // let u2 = CreateUser 1014837013L "Sergey Mutio"
+    
 
-    // System.Threading.Thread.Sleep 2000
+    System.Threading.Thread.Sleep 3000
     client <! RegisterUser u1
+    client <! RegisterUser u2
+    System.Threading.Thread.Sleep 3000
+    client <! (FollowUserCmd u1 u2)
+    client <! (FollowUserCmd u2 u1)
+    System.Threading.Thread.Sleep 3000
+    client <! LoginUser u1
+    client <! LoginUser u2
+    System.Threading.Thread.Sleep 3000
     client <! t1
-    // client <! RegisterUser u2
+    // 
 
-    // client <! (FollowUserCmd u1 u2)
-    // client <! (FollowUserCmd u2 u1)
+
 
     system.WhenTerminated.Wait()
     0 // return an integer exit code

@@ -6,6 +6,7 @@ module Actors =
     open System
     open Akka.Actor
     open Akka.Cluster
+    open Akka.Cluster.Tools
     open Akka.FSharp
     open Akka.DistributedData
     open DOSP.P4.Common.Messages
@@ -83,6 +84,40 @@ module Actors =
 
         loop ()
 
+    let userLoginActor (mailbox: Actor<User * IActorRef>) =
+        let replicator =
+            DistributedData.Get(mailbox.Context.System).Replicator
+
+        let mediator =
+            PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
+
+        let rec loop () =
+            actor {
+                let! (user, client) = mailbox.Receive()
+                // TODO DH key exchange and HMAC thing
+                let uid = user.Id
+
+                let key =
+                    ORSetKey<int64>("uid_fo_" + uid.ToString())
+
+                let rc = ReadLocal.Instance
+
+                let task: Async<IGetResponse> = replicator <? Get(key, rc)
+
+                let resp = Async.RunSynchronously task
+
+                if resp.IsSuccessful then
+                    let ids: ORSet<int64> = resp.Get(key)
+                    ids //.Elements
+                    |> Seq.iter (fun id ->
+                        mediator
+                        <! PublishSubscribe.Subscribe("tweet_" + id.ToString(), client)
+                        mediator
+                        <! PublishSubscribe.Subscribe("mention_" + user.Id.ToString(), client))
+            }
+
+        loop ()
+
     let UserActor (mailbox: Actor<UserCmd>) =
         let rec loop () =
             actor {
@@ -98,7 +133,13 @@ module Actors =
                         getChildActor "user-register" userRegisterActor mailbox
 
                     uActor <! (user, client)
-                | Login -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+                | Login -> //
+                    logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+                    // DONE NEXT login sub following, should get notify when following user tweet
+                    let aRef =
+                        getChildActor "user-login" userLoginActor mailbox
+
+                    aRef <! (user, client)
                 | Logout -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
 
                 return! loop ()
@@ -107,12 +148,19 @@ module Actors =
         loop ()
 
     let TweetActor (mailbox: Actor<Tweet>) =
+        let mediator =
+            PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
+
         let rec loop () =
             actor {
                 let! msg = mailbox.Receive()
 
                 match msg.TwType with
-                | NewT -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+                | NewT ->
+                    let uid = msg.User.Id.ToString()
+                    mediator
+                    <! PublishSubscribe.Publish("tweet_" + uid, (uid, msg))
+                // logInfof mailbox "publish %A from %A" msg uid
                 | RT -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
             }
 
