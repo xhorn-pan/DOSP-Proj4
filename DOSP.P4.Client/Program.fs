@@ -21,7 +21,7 @@ let main argv =
     System.Threading.Thread.Sleep 3000
     let u1 = CreateUser 1014837012L "Sergey Mutin"
     let u2 = CreateUser 1014837013L "Sergey Mutio"
-    let t1 = PubTweet u1 "test test test"
+    // let t1 = PubTweet u1 "test test test"
     
 
     System.Threading.Thread.Sleep 3000
@@ -34,7 +34,12 @@ let main argv =
     client <! LoginUser u1
     client <! LoginUser u2
     System.Threading.Thread.Sleep 3000
-    client <! t1
+    [1 .. 100] 
+    |> List.iter(fun idx -> 
+        let id = idx |> int64
+        let tw = PubTweetWithId id u1 "tst test test"
+        client <! tw)
+    
     // 
 
 

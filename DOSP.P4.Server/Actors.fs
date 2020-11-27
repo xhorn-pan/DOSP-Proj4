@@ -80,6 +80,8 @@ module Actors =
                 let d = resp.Get(key)
 
                 client <! d
+
+                return! loop ()
             }
 
         loop ()
@@ -114,6 +116,8 @@ module Actors =
                         <! PublishSubscribe.Subscribe("tweet_" + id.ToString(), client)
                         mediator
                         <! PublishSubscribe.Subscribe("mention_" + user.Id.ToString(), client))
+
+                return! loop ()
             }
 
         loop ()
@@ -162,6 +166,8 @@ module Actors =
                     <! PublishSubscribe.Publish("tweet_" + uid, (uid, msg))
                 // logInfof mailbox "publish %A from %A" msg uid
                 | RT -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+
+                return! loop ()
             }
 
         loop ()

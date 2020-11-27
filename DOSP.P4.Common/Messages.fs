@@ -65,7 +65,7 @@ module Messages =
         | RT
 
     type Tweet =
-        { Id: int64
+        { Tid: int64
           User: User
           Text: string
           TwType: TweetType
@@ -73,10 +73,21 @@ module Messages =
           HashTags: HashTag list
           Mentions: Mention list }
 
+    let PubTweetWithId (id: int64) (u: User) (text: string) =
+        let hts = GetHashTags text
+        let ms = GetMentions text
+        { Tid = id
+          User = u
+          Text = text
+          TwType = NewT
+          RtId = 0L
+          HashTags = hts
+          Mentions = ms }
+
     let PubTweet (u: User) (text: string) =
         let hts = GetHashTags text
         let ms = GetMentions text
-        { Id = 0L
+        { Tid = 0L
           User = u
           Text = text
           TwType = NewT
@@ -87,7 +98,7 @@ module Messages =
     let RtTweet (u: User) (tw: Tweet) =
         let fUser = tw.User
         let rtText = "RT@" + fUser.Name + " " + tw.Text
-        { Id = 0L
+        { Tid = 0L
           User = u
           Text = rtText
           TwType = RT
