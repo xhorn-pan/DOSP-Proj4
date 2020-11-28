@@ -99,6 +99,9 @@ module Actors =
                 // TODO DH key exchange and HMAC thing
                 let uid = user.Id
 
+                mediator
+                <! PublishSubscribe.Subscribe("mention_" + user.Id.ToString(), client)
+
                 let key =
                     ORSetKey<int64>("uid_fo_" + uid.ToString())
 
@@ -113,9 +116,45 @@ module Actors =
                     ids //.Elements
                     |> Seq.iter (fun id ->
                         mediator
-                        <! PublishSubscribe.Subscribe("tweet_" + id.ToString(), client)
+                        <! PublishSubscribe.Subscribe("tweet_" + id.ToString(), client))
+
+                return! loop ()
+            }
+
+        loop ()
+
+    let userLogoutActor (mailbox: Actor<User * IActorRef>) =
+        let mediator =
+            PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
+
+        let replicator =
+            DistributedData.Get(mailbox.Context.System).Replicator
+
+        let rec loop () =
+            actor {
+                let! (user, client) = mailbox.Receive()
+                // TODO DH key exchange and HMAC thing
+                let uid = user.Id
+
+                mediator
+                <! PublishSubscribe.Unsubscribe("mention_" + user.Id.ToString(), client)
+
+                let key =
+                    ORSetKey<int64>("uid_fo_" + uid.ToString())
+
+                let rc = ReadLocal.Instance
+
+                let task: Async<IGetResponse> = replicator <? Get(key, rc)
+
+                let resp = Async.RunSynchronously task
+
+                if resp.IsSuccessful then
+                    let ids: ORSet<int64> = resp.Get(key)
+                    ids //.Elements
+                    |> Seq.iter (fun id ->
                         mediator
-                        <! PublishSubscribe.Subscribe("mention_" + user.Id.ToString(), client))
+                        <! PublishSubscribe.Unsubscribe("tweet_" + id.ToString(), client))
+
 
                 return! loop ()
             }
@@ -144,14 +183,19 @@ module Actors =
                         getChildActor "user-login" userLoginActor mailbox
 
                     aRef <! (user, client)
-                | Logout -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+                | Logout ->
+                    // logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+                    let aRef =
+                        getChildActor "user-logout" userLogoutActor mailbox
+
+                    aRef <! (user, client)
 
                 return! loop ()
             }
 
         loop ()
 
-    let TweetActor (mailbox: Actor<Tweet>) =
+    let TweetActor (mailbox: Actor<TweetCmd>) =
         let mediator =
             PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
 
@@ -160,12 +204,14 @@ module Actors =
                 let! msg = mailbox.Receive()
 
                 match msg.TwType with
-                | NewT ->
+                | NewT
+                | RT ->
+                    let pubT = PubTweet msg
                     let uid = msg.User.Id.ToString()
                     mediator
-                    <! PublishSubscribe.Publish("tweet_" + uid, (uid, msg))
+                    <! PublishSubscribe.Publish("tweet_" + uid, pubT)
                 // logInfof mailbox "publish %A from %A" msg uid
-                | RT -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+                | _ -> ()
 
                 return! loop ()
             }

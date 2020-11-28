@@ -18,9 +18,7 @@ module Messages =
         | Logout
 
     type UserCmd = { Cmd: UserCmdType; User: User }
-
     let RegisterUser (u: User) = { Cmd = UserCmdType.Register; User = u }
-
     let LoginUser (u: User) = { Cmd = UserCmdType.Login; User = u }
     let LogoutUser (u: User) = { Cmd = UserCmdType.Logout; User = u }
 
@@ -63,6 +61,23 @@ module Messages =
     type TweetType =
         | NewT
         | RT
+        | Publish
+
+    type TweetCmd =
+        { TwType: TweetType
+          User: User
+          Msg: string }
+
+    let TweetTweet (u: User) (msg: string) = { TwType = NewT; User = u; Msg = msg }
+
+    let PubTweet (tc: TweetCmd) =
+        { TwType = Publish
+          User = tc.User
+          Msg = tc.Msg }
+
+    let RtTweet (u: User) (tc: TweetCmd) =
+        let rtMsg = "@" + tc.User.Name + " " + tc.Msg
+        { TwType = RT; User = u; Msg = rtMsg }
 
     type Tweet =
         { Tid: int64
@@ -83,25 +98,3 @@ module Messages =
           RtId = 0L
           HashTags = hts
           Mentions = ms }
-
-    let PubTweet (u: User) (text: string) =
-        let hts = GetHashTags text
-        let ms = GetMentions text
-        { Tid = 0L
-          User = u
-          Text = text
-          TwType = NewT
-          RtId = 0L
-          HashTags = hts
-          Mentions = ms }
-
-    let RtTweet (u: User) (tw: Tweet) =
-        let fUser = tw.User
-        let rtText = "RT@" + fUser.Name + " " + tw.Text
-        { Tid = 0L
-          User = u
-          Text = rtText
-          TwType = RT
-          RtId = fUser.Id
-          HashTags = tw.HashTags
-          Mentions = tw.Mentions }
