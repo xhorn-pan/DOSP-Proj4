@@ -4,7 +4,9 @@
 open Akka.Actor
 open Akka.FSharp
 open DOSP.P4.Common.Utils
-open DOSP.P4.Common.Messages
+open DOSP.P4.Common.Messages.User
+open DOSP.P4.Common.Messages.Follow
+open DOSP.P4.Common.Messages.Tweet
 open DOSP.P4.Client.Actors
 [<EntryPoint>]
 let main argv =
@@ -20,6 +22,9 @@ let main argv =
         let uClient = spawn system ("client-" + idx.ToString()) <| ClientActor u
         uClient <! UserCmdType.Register
         System.Threading.Thread.Sleep 30
+        uClient <! UserCmdType.Login
+
+        uClient <! CTweet "test tweet"
     )
 
     system.WhenTerminated.Wait()

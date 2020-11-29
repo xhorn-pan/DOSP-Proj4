@@ -7,7 +7,11 @@
 
   <ItemGroup>
     <Content Include="paket.references" />
-    <Compile Include="Actors.fs" />
+    <!-- <Compile Include="Actors.fs" /> -->
+    <Compile Include="Actors\Common.fs" />
+    <Compile Include="Actors\UserActors.fs" />
+    <Compile Include="Actors\FollowActors.fs" />
+    <Compile Include="Actors\TweetActors.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

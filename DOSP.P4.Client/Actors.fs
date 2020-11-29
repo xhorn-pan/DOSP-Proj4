@@ -6,7 +6,9 @@ module Actors =
 
     open Akka.FSharp
     open Akka.Cluster
-    open DOSP.P4.Common.Messages
+    open DOSP.P4.Common.Messages.User
+    open DOSP.P4.Common.Messages.Follow
+    open DOSP.P4.Common.Messages.Tweet
 
     type CFollowCmd = CFollowCmd of FollowType * User
     type CTweet = CTweet of string

@@ -4,7 +4,9 @@ open Akka
 open Akka.Actor
 open Akka.FSharp
 open DOSP.P4.Common.Utils
-open DOSP.P4.Server.Actors
+open DOSP.P4.Server.Actors.UserActors
+open DOSP.P4.Server.Actors.FollowActors
+open DOSP.P4.Server.Actors.TweetActors
 
 [<EntryPoint>]
 let main argv =

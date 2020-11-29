@@ -5,7 +5,13 @@
   <ItemGroup>
     <Content Include="paket.references" />
     <Compile Include="Utils.fs" />
-    <Compile Include="Messages.fs" />
+    <!-- <Compile Include="Messages.fs" /> -->
+    <Compile Include="Messages\User.fs" />
+    <Compile Include="Messages\Follow.fs" />
+    <Compile Include="Messages\Hashtag.fs" />
+    <Compile Include="Messages\Mention.fs" />
+    <Compile Include="Messages\Tweet.fs" />
+    <Compile Include="Messages\EngineResp.fs" />
   </ItemGroup>
   <Import Project="..\.paket\Paket.Restore.targets" />
 </Project>
