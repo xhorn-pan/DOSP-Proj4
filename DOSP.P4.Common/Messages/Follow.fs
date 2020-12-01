@@ -1,23 +1,27 @@
 namespace DOSP.P4.Common.Messages
 
 module Follow =
+    open MongoDB.Bson
     open User
 
     type FollowType =
         | Follow
         | Unfollow
 
+    type FollowCollection = { UserId: string; FollowerId: string }
+
     type FollowCmd =
         { Cmd: FollowType
-          UserId: int64
-          FollowId: int64 }
+          Col: FollowCollection }
 
-    let FollowUserCmd (u: User) (f: User) =
+    let FollowUserIdCmd (uid: string) (fid: string) =
         { Cmd = Follow
-          UserId = u.Id
-          FollowId = f.Id }
+          Col = { UserId = uid; FollowerId = fid } }
 
-    let UnfollowUserCmd (u: User) (f: User) =
+    let FollowUserCmd (u: User) (f: User) = FollowUserIdCmd u.Id f.Id
+
+    let UnfollowUserIdCmd (uid: string) (fid: string) =
         { Cmd = Unfollow
-          UserId = u.Id
-          FollowId = f.Id }
+          Col = { UserId = uid; FollowerId = fid } }
+
+    let UnfollowUserCmd (u: User) (f: User) = UnfollowUserIdCmd u.Id f.Id

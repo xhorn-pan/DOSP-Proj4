@@ -6,11 +6,12 @@ module Actors =
 
     open Akka.FSharp
     open Akka.Cluster
+    open DOSP.P4.Common.Messages.EngineResp
     open DOSP.P4.Common.Messages.User
     open DOSP.P4.Common.Messages.Follow
     open DOSP.P4.Common.Messages.Tweet
 
-    type CFollowCmd = CFollowCmd of FollowType * User
+    type CFollowCmd = CFollowCmd of FollowType * string
     type CTweet = CTweet of string
 
     let ClientActor (u: User) (mailbox: Actor<obj>) =
@@ -39,14 +40,17 @@ module Actors =
                     match msg with
                     | CFollowCmd (cmd, following) ->
                         match cmd with
-                        | Follow -> fRef <! FollowUserCmd u following
-                        | Unfollow -> fRef <! UnfollowUserCmd u following
+                        | Follow -> fRef <! FollowUserIdCmd u.Id following
+                        | Unfollow -> fRef <! UnfollowUserIdCmd u.Id following
 
                 | :? CTweet as msg ->
                     match msg with
                     | CTweet tw -> tRef <! TweetTweet u tw
 
-
+                | :? (EngineResp<obj>) as msg ->
+                    match msg.RType with
+                    | Succ -> ()
+                    | Fail -> logInfof mailbox "Received message %A from %A" msg.Body (mailbox.Sender())
                 //| :? User as msg -> gwRef <! msg
                 | _ -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
 

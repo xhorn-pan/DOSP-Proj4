@@ -13,11 +13,8 @@ module FollowActors =
     open Common
 
     let FollowActor (mailbox: Actor<FollowCmd>) =
-        let node =
-            Cluster.Get(mailbox.Context.System).SelfUniqueAddress
-
-        let replicator =
-            DistributedData.Get(mailbox.Context.System).Replicator
+        let fDb =
+            P4GetCollection<FollowCollection> "follow"
 
         let rec loop () =
             actor {
@@ -26,24 +23,12 @@ module FollowActors =
 
                 match msg.Cmd with
                 | Follow ->
-                    let uid = msg.UserId
-                    let fid = msg.FollowId
-                    let wc = writeLocal
+                    let uf = msg.Col
 
-                    let key =
-                        ORSetKey<string>("uid_fo_" + uid.ToString())
-
-                    let set = ORSet.Create<int64>(node, fid)
-
-                    let task: Async<IUpdateResponse> =
-                        replicator
-                        <? Update(key, set, wc, (fun old -> old.Merge(set)))
-
-                    let resp = Async.RunSynchronously task
-                    if resp.IsSuccessful then
-                        client <! RespSucc("follow successful")
-                    else
-                        client <! RespFail("follow error")
+                    try
+                        fDb.InsertOneAsync(uf).GetAwaiter().GetResult()
+                    with _ -> client <! RespFail("follow error")
+                    client <! RespSucc("follow successful")
                     return! loop ()
                 | Unfollow ->
                     client <! RespSucc("unfollow not impl")

@@ -7,9 +7,9 @@ module Mention =
 
     type Mention = { User: User; Indices: int * int }
 
-    let GetMentions (text: string) =
-        let ms = extractText text '@'
-        ms
-        |> List.map (fun (txt, se) ->
-            let user = CreateUser 0L txt
-            { User = user; Indices = se })
+// let GetMentions (text: string) =
+//     let ms = extractText text '@'
+//     ms
+//     |> List.map (fun (txt, se) ->
+//         let user = CreateUser txt
+//         { User = user; Indices = se })

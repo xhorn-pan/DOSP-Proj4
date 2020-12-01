@@ -4,3 +4,5 @@ Akka.Cluster
 Akka.Cluster.Tools
 Akka.DistributedData
 Akka.Serialization.Hyperion
+MongoDB.Driver
+MongoDB.Bson

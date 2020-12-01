@@ -8,3 +8,7 @@ nuget Akka.Cluster.Tools
 nuget Akka.DistributedData
 nuget Akka.FSharp
 nuget Akka.Serialization.Hyperion
+nuget MathNet.Numerics.FSharp
+nuget MongoDB.Bson
+nuget MongoDB.Driver
+nuget MongoDB.FSharp

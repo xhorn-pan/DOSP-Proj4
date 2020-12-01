@@ -16,6 +16,8 @@ module TweetActors =
         let mediator =
             PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
 
+        let db = P4GetCollection<Tweet> "tweet"
+
         let rec loop () =
             actor {
                 let! msg = mailbox.Receive()
@@ -28,6 +30,7 @@ module TweetActors =
                     let uid = msg.User.Id.ToString()
                     mediator
                     <! PublishSubscribe.Publish("tweet_" + uid, pubT)
+
                 | _ -> ()
 
                 return! loop ()

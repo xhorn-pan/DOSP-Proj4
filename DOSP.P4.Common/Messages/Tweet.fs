@@ -29,10 +29,19 @@ module Tweet =
         { TwType = RT; User = u; Msg = rtMsg }
 
     type Tweet =
-        { Tid: int64
+        { Tid: string
           User: User
           Text: string
           TwType: TweetType
-          RtId: int64
+          RtId: string
           HashTags: HashTag list
           Mentions: Mention list }
+
+    let GetTweet (tc: TweetCmd) =
+        { Tid = ""
+          User = tc.User
+          Text = tc.Msg
+          TwType = tc.TwType
+          RtId = ""
+          HashTags = []
+          Mentions = [] }

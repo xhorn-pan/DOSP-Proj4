@@ -8,39 +8,25 @@ module UserActors =
     open Akka.Cluster
     open Akka.Cluster.Tools
     open Akka.DistributedData
+    open MongoDB.Driver
     open DOSP.P4.Common.Messages.EngineResp
     open DOSP.P4.Common.Messages.User
     open Common
 
     type UserSave = UserSave of User * IActorRef * IWriteConsistency
-    let getUserKey (id: int64) = (id / 100L).ToString()
 
     let userRegisterActor (mailbox: Actor<User * IActorRef>) =
-        let node =
-            Cluster.Get(mailbox.Context.System).SelfUniqueAddress
-
-        let replicator =
-            DistributedData.Get(mailbox.Context.System).Replicator
+        let uDb = P4GetCollection<User> "user"
 
         let rec loop () =
             actor {
                 let! (user, client) = mailbox.Receive()
-                let wc = wcPolicy
 
-                let key =
-                    ORSetKey<string>("user-" + (getUserKey user.Id))
+                try
+                    uDb.InsertOneAsync(user).GetAwaiter().GetResult()
+                with _ -> client <! RespFail("user exists")
 
-                let set = ORSet.Create<User>(node, user)
-
-                let task: Async<IUpdateResponse> =
-                    replicator
-                    <? Update(key, set, wc, (fun old -> old.Merge(set)))
-
-                let resp = Async.RunSynchronously task
-
-                if resp.IsSuccessful
-                then client <! RespSucc("user register successful")
-                else client <! RespFail("user register error")
+                client <! RespSucc("user register successful")
 
                 return! loop ()
             }
@@ -134,6 +120,8 @@ module UserActors =
 
                 let client = mailbox.Sender()
 
+                logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+
                 match msg.Cmd with
                 | Register -> // from client
                     let uActor =
@@ -141,7 +129,7 @@ module UserActors =
 
                     uActor <! (user, client)
                 | Login -> //
-                    logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
+
                     // DONE NEXT login sub following, should get notify when following user tweet
                     let aRef =
                         getChildActor "user-login" userLoginActor mailbox

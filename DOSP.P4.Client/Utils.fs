@@ -6,7 +6,7 @@ module Utils =
     open System
     open MathNet.Numerics.Distributions
 
-    let a = 1.2 // zipf a param
+    let a = 2. // zipf a param
     let getZipF (total: int) = Zipf(a, total)
 
     let getZipfFollower (uids: string list) =
