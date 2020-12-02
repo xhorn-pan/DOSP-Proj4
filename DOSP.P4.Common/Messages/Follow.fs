@@ -1,13 +1,13 @@
 namespace DOSP.P4.Common.Messages
 
 module Follow =
-    open MongoDB.Bson
     open User
 
     type FollowType =
         | Follow
         | Unfollow
 
+    // [ BsonIgnoreExtraElementsAttribute(true) ]
     type FollowCollection = { UserId: string; FollowerId: string }
 
     type FollowCmd =

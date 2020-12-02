@@ -8,6 +8,7 @@ open DOSP.P4.Server.Actors.UserActors
 open DOSP.P4.Server.Actors.FollowActors
 open DOSP.P4.Server.Actors.TweetActors
 
+
 [<EntryPoint>]
 let main argv =
     let config = ConfigurationLoader.load()
@@ -19,6 +20,6 @@ let main argv =
     spawnOpt system "service-user" UserActor [pRouteConfig] |> ignore
     spawnOpt system "service-follow" FollowActor [pRouteConfig] |> ignore
     spawnOpt system "service-tweet" TweetActor [pRouteConfig] |> ignore
-
+    ignoreIdInFollowCollection()
     system.WhenTerminated.Wait()
     0

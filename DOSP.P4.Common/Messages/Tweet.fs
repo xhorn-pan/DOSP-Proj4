@@ -3,6 +3,7 @@ namespace DOSP.P4.Common.Messages
 open DOSP.P4.Common.Utils
 
 module Tweet =
+    open MongoDB.Bson
     open User
     open HashTag
     open Mention
@@ -11,6 +12,10 @@ module Tweet =
         | NewT
         | RT
         | Publish
+        | QueryUser
+        | QueryMention
+        | QueryHashtag
+
 
     type TweetCmd =
         { TwType: TweetType
@@ -29,19 +34,10 @@ module Tweet =
         { TwType = RT; User = u; Msg = rtMsg }
 
     type Tweet =
-        { Tid: string
+        { Id: string
           User: User
           Text: string
           TwType: TweetType
           RtId: string
           HashTags: HashTag list
           Mentions: Mention list }
-
-    let GetTweet (tc: TweetCmd) =
-        { Tid = ""
-          User = tc.User
-          Text = tc.Msg
-          TwType = tc.TwType
-          RtId = ""
-          HashTags = []
-          Mentions = [] }

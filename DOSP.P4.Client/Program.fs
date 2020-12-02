@@ -19,7 +19,7 @@ let main argv =
     System.Threading.Thread.Sleep 5000
     printfn "waiting for node to join cluster"
 
-    let numOfUsers = [1000L .. 1100L]
+    let numOfUsers = [1000L .. 1004L]
 
     let users = numOfUsers |> List.map (fun idx ->
         let u = CreateUser ("user-" + idx.ToString())
@@ -37,6 +37,23 @@ let main argv =
         followers |> Set.iter (fun follower -> 
         uClient <! CFollowCmd(FollowType.Follow, follower)
         )
+    )
+
+    ucMap |> Map.iter (fun _ c ->
+        c <!  UserCmdType.Login
+    )
+    System.Threading.Thread.Sleep 10000
+    ucMap |> Map.iter (fun _ c ->
+        c <! CTweet (sprintf "test from %s #greeting#cop5615 @root" (c.Path.ToStringWithAddress()))
+    )
+    // query 
+    System.Threading.Thread.Sleep 20000
+    ucMap |> Map.iter (fun _ c ->
+        //c <! CTweet (sprintf "test from %s #greeting @root" (c.Path.ToStringWithAddress()))
+        c <! CTweetQueryUser "user-1001"
+        c <! CTweetQueryHashTag "#greeting"
+        c <! CTweetQueryHashTag "#cop5615"
+        c <! CTweetQueryMention "@root"
     )
     system.WhenTerminated.Wait()
     0 // return an integer exit code

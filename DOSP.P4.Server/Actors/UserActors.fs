@@ -9,11 +9,20 @@ module UserActors =
     open Akka.Cluster.Tools
     open Akka.DistributedData
     open MongoDB.Driver
+    open MongoDB.FSharp
+    open MongoDB.Bson.Serialization
     open DOSP.P4.Common.Messages.EngineResp
     open DOSP.P4.Common.Messages.User
+    open DOSP.P4.Common.Messages.Follow
     open Common
 
     type UserSave = UserSave of User * IActorRef * IWriteConsistency
+
+    let ignoreIdInFollowCollection () =
+        BsonClassMap.RegisterClassMap<FollowCollection>(fun cm ->
+            cm.AutoMap()
+            cm.SetIgnoreExtraElements(true))
+        |> ignore
 
     let userRegisterActor (mailbox: Actor<User * IActorRef>) =
         let uDb = P4GetCollection<User> "user"
@@ -34,11 +43,11 @@ module UserActors =
         loop ()
 
     let userLoginActor (mailbox: Actor<User * IActorRef>) =
-        let replicator =
-            DistributedData.Get(mailbox.Context.System).Replicator
-
         let mediator =
             PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
+
+        let fDb =
+            P4GetCollection<FollowCollection> "follow"
 
         let rec loop () =
             actor {
@@ -49,21 +58,16 @@ module UserActors =
                 mediator
                 <! PublishSubscribe.Subscribe("mention_" + user.Id.ToString(), client)
 
-                let key =
-                    ORSetKey<int64>("uid_fo_" + uid.ToString())
+                try
+                    let followingIds =
+                        fDb.FindAsync(fun x -> x.FollowerId = uid).GetAwaiter().GetResult()
 
-                let rc = ReadLocal.Instance
-
-                let task: Async<IGetResponse> = replicator <? Get(key, rc)
-
-                let resp = Async.RunSynchronously task
-
-                if resp.IsSuccessful then
-                    let ids: ORSet<int64> = resp.Get(key)
-                    ids //.Elements
-                    |> Seq.iter (fun id ->
+                    followingIds.ToEnumerable()
+                    |> Seq.iter (fun x ->
+                        logInfof mailbox "sub %s 's tweet by %A" x.UserId client
                         mediator
-                        <! PublishSubscribe.Subscribe("tweet_" + id.ToString(), client))
+                        <! PublishSubscribe.Subscribe("tweet_" + x.UserId, client))
+                with _ -> client <! RespFail("following not working")
 
                 client <! RespSucc("user login successful")
 
@@ -76,8 +80,8 @@ module UserActors =
         let mediator =
             PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
 
-        let replicator =
-            DistributedData.Get(mailbox.Context.System).Replicator
+        let fDb =
+            P4GetCollection<FollowCollection> "follow"
 
         let rec loop () =
             actor {
@@ -88,23 +92,17 @@ module UserActors =
                 mediator
                 <! PublishSubscribe.Unsubscribe("mention_" + user.Id.ToString(), client)
 
-                let key =
-                    ORSetKey<int64>("uid_fo_" + uid.ToString())
+                try
+                    let followingIds =
+                        fDb.FindAsync(fun x -> x.FollowerId = uid).GetAwaiter().GetResult()
 
-                let rc = ReadLocal.Instance
-
-                let task: Async<IGetResponse> = replicator <? Get(key, rc)
-
-                let resp = Async.RunSynchronously task
-
-                if resp.IsSuccessful then
-                    let ids: ORSet<int64> = resp.Get(key)
-                    ids //.Elements
-                    |> Seq.iter (fun id ->
+                    followingIds.ToEnumerable()
+                    |> Seq.iter (fun x ->
                         mediator
-                        <! PublishSubscribe.Unsubscribe("tweet_" + id.ToString(), client))
+                        <! PublishSubscribe.Unsubscribe("tweet_" + x.UserId, client))
+                with _ -> client <! RespFail("following not working")
 
-                client <! RespSucc("user login successful")
+                client <! RespSucc("user logout successful")
 
                 return! loop ()
             }
