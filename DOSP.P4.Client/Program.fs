@@ -13,13 +13,14 @@ open DOSP.P4.Client.Actors
 
 [<EntryPoint>]
 let main argv =
+    let nu = argv.[0] |> int64
     let config = ConfigurationLoader.load()
     let system = ActorSystem.Create("project4", config)
 
-    System.Threading.Thread.Sleep 5000
+    System.Threading.Thread.Sleep (100 * (nu |> int))
     printfn "waiting for node to join cluster"
 
-    let numOfUsers = [1000L .. 2000L]
+    let numOfUsers = [1000L .. (1000L + nu)]
 
     let users = numOfUsers |> List.map (fun idx ->
         let u = CreateUser ("user-" + idx.ToString())
@@ -31,6 +32,7 @@ let main argv =
     let ucMap = users |> Map.ofList
     let uids = users |> List.map fst
     let ufTable = getZipfFollower uids
+    printfn "waiting for generate follow table"
     ufTable |> List.iter (fun (uid, followers) -> 
         // printfn "%A folloers: %A" uid followers
         let uClient = ucMap.[uid]
@@ -38,11 +40,13 @@ let main argv =
         uClient <! CFollowCmd(FollowType.Follow, follower)
         )
     )
-    System.Threading.Thread.Sleep 10000
+    printfn "waiting for user login"
+    System.Threading.Thread.Sleep (100 * (nu |> int))
     ucMap |> Map.iter (fun _ c ->
         c <!  UserCmdType.Login
     )
-    System.Threading.Thread.Sleep 10000
+    printfn "waiting for user tweet (and retweet)"
+    System.Threading.Thread.Sleep (100 * (nu |> int))
     ucMap |> Map.iter (fun _ c ->
         c <! CTweet (sprintf "test from %s #greeting#cop5615 @root" (c.Path.ToStringWithAddress()))
     )

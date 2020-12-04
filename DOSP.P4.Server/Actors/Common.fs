@@ -47,7 +47,7 @@ module Common =
 
         // mongoClientSettings.SslSettings <- sslSettings
 
-        // let client = MongoClient(ConnectionString)
-        let client = MongoClient(localConnectionString)
+        let client = MongoClient(ConnectionString)
+        //let client = MongoClient(localConnectionString)
         let db = client.GetDatabase(DbName)
         db.GetCollection<'a>(cName)

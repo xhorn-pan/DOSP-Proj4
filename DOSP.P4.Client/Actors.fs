@@ -32,7 +32,7 @@ module Actors =
           Mentions = [] }
 
     let RtTweet (u: User) (t: Tweet) =
-        let rtMsg = "@" + t.User.Name
+        let rtMsg = "RT @" + t.User.Name
 
         { Id = BsonObjectId(ObjectId.GenerateNewId()).ToString()
           User = u
