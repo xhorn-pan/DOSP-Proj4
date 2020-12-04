@@ -8,3 +8,6 @@ paket-files/
 
 bin
 obj
+ClusterTClient
+ClusterTServer
+RemoteTest

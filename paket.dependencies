@@ -12,3 +12,4 @@ nuget MathNet.Numerics.FSharp
 nuget MongoDB.Bson
 nuget MongoDB.Driver
 nuget MongoDB.FSharp
+nuget NSec.Cryptography

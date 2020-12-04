@@ -2,17 +2,48 @@
 // UFID: 95160902
 namespace DOSP.P4.Client
 
-module Actors =
+open DOSP.P4.Common.Messages.HashTag
 
+module Actors =
+    open System
     open Akka.FSharp
     open Akka.Cluster
     open DOSP.P4.Common.Messages.EngineResp
     open DOSP.P4.Common.Messages.User
     open DOSP.P4.Common.Messages.Follow
     open DOSP.P4.Common.Messages.Tweet
+    open MongoDB.Bson
 
     type CFollowCmd = CFollowCmd of FollowType * string
-    type CTweet = CTweet of string
+
+    type CTweetCmd =
+        | CTweet of string
+        | CRT of Tweet
+
+    let TweetTweet (u: User) (msg: string) =
+        let hts = GetHashTags msg
+        { Id = BsonObjectId(ObjectId.GenerateNewId()).ToString()
+          User = u
+          Text = msg
+          CreateAt = DateTime.Now
+          ReTweet = false
+          RtId = ""
+          HashTags = hts
+          Mentions = [] }
+
+    let RtTweet (u: User) (t: Tweet) =
+        let rtMsg = "@" + t.User.Name
+
+        { Id = BsonObjectId(ObjectId.GenerateNewId()).ToString()
+          User = u
+          Text = rtMsg
+          CreateAt = DateTime.Now
+          ReTweet = true
+          RtId = t.Id
+          HashTags = []
+          Mentions = [] }
+
+    let rnd = System.Random()
 
     type CTweetQuery =
         | CTweetQueryUser of string
@@ -21,28 +52,24 @@ module Actors =
 
     let getCTweetQueryCmd (u: User) (qt: CTweetQuery) =
         match qt with
-        | CTweetQueryUser userName ->
-            { TwType = QueryUser
-              User = u
-              Msg = userName }
-        | CTweetQueryHashTag hashTag ->
-            { TwType = QueryHashtag
-              User = u
-              Msg = hashTag }
+        | CTweetQueryUser userName -> { QType = QueryUser; Body = userName }
+        | CTweetQueryHashTag hashTag -> { QType = QueryHashtag; Body = hashTag }
         | CTweetQueryMention userName ->
-            { TwType = QueryMention
-              User = u
-              Msg = userName }
-
+            { QType = QueryMention
+              Body = userName }
+    // akka.tcp://project4@localhost:8777/
     let ClientActor (u: User) (mailbox: Actor<obj>) =
         let uRef =
-            mailbox.Context.System.ActorSelection("akka.tcp://project4@localhost:8777/user/service-user")
+            mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-user")
 
         let fRef =
-            mailbox.Context.System.ActorSelection("akka.tcp://project4@localhost:8777/user/service-follow")
+            mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-follow")
 
         let tRef =
-            mailbox.Context.System.ActorSelection("akka.tcp://project4@localhost:8777/user/service-tweet")
+            mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-tweet")
+
+        let qRef =
+            mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-query")
 
         let rec loop () =
             actor {
@@ -63,22 +90,24 @@ module Actors =
                         | Follow -> fRef <! FollowUserIdCmd u.Id following
                         | Unfollow -> fRef <! UnfollowUserIdCmd u.Id following
 
-                | :? CTweet as msg ->
+                | :? CTweetCmd as msg ->
                     match msg with
                     | CTweet tw -> tRef <! TweetTweet u tw
+                    | CRT tw -> tRef <! RtTweet u tw
 
-                | :? CTweetQuery as msg -> tRef <! getCTweetQueryCmd u msg
+                | :? CTweetQuery as msg -> qRef <! getCTweetQueryCmd u msg
 
                 | :? (EngineResp<obj>) as msg ->
                     match msg.RType with
-                    | Succ ->
-                        let msgBody = msg.Body
-                        match msgBody with
-                        | :? TweetCmd as tw -> logErrorf mailbox "Received message %A from %A" tw (mailbox.Sender())
-                        | _ -> ()
+                    | Succ -> ()
                     | Fail -> logInfof mailbox "Received message %A from %A" msg.Body (mailbox.Sender())
-                //| :? User as msg -> gwRef <! msg
-                | :? Tweet as msg -> logInfof mailbox "%s got a tweet from %s: %A" u.Name msg.User.Name msg.Text
+
+                | :? Tweet as msg -> // from server
+                    //logInfof mailbox "%s got a tweet from %s: %A" u.Name msg.User.Name msg.Text
+                    logErrorf mailbox "%s got a tweet from %s: %A" u.Name msg.User.Name msg.Text
+                    let chance = rnd.Next(100)
+                    if chance % 10 = 0 then mailbox.Self <! CRT msg
+
                 | _ -> logInfof mailbox "Received message %A from %A" msg (mailbox.Sender())
 
                 return! loop ()

@@ -6,3 +6,4 @@ Akka.DistributedData
 Akka.Serialization.Hyperion
 MathNet.Numerics.FSharp
 MongoDB.FSharp
+MongoDB.Driver

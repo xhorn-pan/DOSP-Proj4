@@ -6,6 +6,7 @@ open DOSP.P4.Common.Messages.User
 open DOSP.P4.Common.Messages.HashTag
 open MongoDB.Driver
 open DOSP.P4.Common.Messages.Mention
+open System
 
 module TweetActors =
     open Akka.Actor
@@ -18,30 +19,16 @@ module TweetActors =
     open DOSP.P4.Common.Messages.Tweet
     open Common
 
-    let getTweet (u: User) (msg: string) =
-        let id =
-            BsonObjectId(ObjectId.GenerateNewId()).ToString()
-
-        let hts = GetHashTags msg
-        let ms = GetMentions msg
-        { Id = id
-          User = u
-          Text = msg
-          TwType = NewT
-          RtId = ""
-          HashTags = hts
-          Mentions = ms }
-
-    let tSaveActor (mailbox: Actor<TweetCmd * IActorRef>) =
+    let tSaveActor (mailbox: Actor<Tweet * IActorRef>) =
         let db = P4GetCollection<Tweet> "tweet"
 
         let rec loop () =
             actor {
-                let! (tc, client) = mailbox.Receive()
-                let t = getTweet tc.User tc.Msg
+                let! (tw, client) = mailbox.Receive()
+                // let t = getTweet tc.User tc.Msg
 
                 try
-                    db.InsertOneAsync(t).GetAwaiter().GetResult()
+                    db.InsertOneAsync(tw).GetAwaiter().GetResult()
                 with _ -> client <! RespFail("Tweet save failed")
 
                 client <! RespSucc("Tweet save successful")
@@ -51,21 +38,18 @@ module TweetActors =
 
         loop ()
 
-    let tPublishActor (mailbox: Actor<TweetCmd * IActorRef>) =
+    let tPublishActor (mailbox: Actor<Tweet * IActorRef>) =
         let mediator =
             PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
 
         let rec loop () =
             actor {
-                let! (tc, client) = mailbox.Receive()
-                //let pubT = PubTweet tc
-                let t = getTweet tc.User tc.Msg
-
-                let uid = tc.User.Id.ToString()
+                let! (tw, client) = mailbox.Receive()
+                let uid = tw.User.Id.ToString()
 
                 mediator
-                <! PublishSubscribe.Publish("tweet_" + uid, t)
-
+                <! PublishSubscribe.Publish("tweet_" + uid, tw)
+                //TODO mentions
                 client <! RespSucc("Tweet publish successful")
 
                 return! loop ()
@@ -73,19 +57,19 @@ module TweetActors =
 
         loop ()
 
-    let tQueryActor (mailbox: Actor<TweetCmd * IActorRef>) =
+    let TweetQueryActor (mailbox: Actor<QueryMsg>) =
         let db = P4GetCollection<Tweet> "tweet"
 
         let rec loop () =
             actor {
-                let! (tc, client) = mailbox.Receive()
+                let! qm = mailbox.Receive()
+                let client = mailbox.Sender()
 
                 let qFilter =
-                    match tc.TwType with
-                    | QueryUser -> sprintf "{'User.Name': '%s'}" tc.Msg
-                    | QueryMention -> sprintf "{Mentions: {$elemMatch: {User: '%s'}}}" tc.Msg
-                    | QueryHashtag -> sprintf "{HashTags: {$elemMatch: {Text: '%s'}}}" tc.Msg
-                    | _ -> failwith "not query type"
+                    match qm.QType with
+                    | QueryUser -> sprintf "{'User.Name': '%s'}" qm.Body
+                    | QueryMention -> sprintf "{Mentions: {$elemMatch: {User: '%s'}}}" qm.Body
+                    | QueryHashtag -> sprintf "{HashTags: {$elemMatch: {Text: '%s'}}}" qm.Body
 
                 let filter =
                     qFilter
@@ -105,31 +89,22 @@ module TweetActors =
 
         loop ()
 
-    let TweetActor (mailbox: Actor<TweetCmd>) =
+    let TweetActor (mailbox: Actor<Tweet>) =
         let sRef =
             getChildActor "tweet-save" tSaveActor mailbox
 
         let pRef =
             getChildActor "tweet-publish" tPublishActor mailbox
 
-        let qRef =
-            getChildActor "tweet-query" tQueryActor mailbox
-
         let rec loop () =
             actor {
                 let! msg = mailbox.Receive()
                 let client = mailbox.Sender()
 
-                match msg.TwType with
-                | NewT
-                | RT ->
-                    sRef <! (msg, client)
-                    pRef <! (msg, client)
-
-                | QueryUser
-                | QueryMention
-                | QueryHashtag -> qRef <! (msg, client)
-                | _ -> ()
+                // save tweet to db
+                sRef <! (msg, client)
+                // publish tweet to follow
+                pRef <! (msg, client)
 
                 return! loop ()
             }
