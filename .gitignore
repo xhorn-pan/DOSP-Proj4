@@ -8,6 +8,10 @@ paket-files/
 
 bin
 obj
+
+# other proj
 ClusterTClient
 ClusterTServer
 RemoteTest
+ping
+
