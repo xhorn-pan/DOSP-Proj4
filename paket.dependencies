@@ -13,8 +13,10 @@ nuget MongoDB.Bson
 nuget MongoDB.Driver
 nuget MongoDB.FSharp
 nuget NSec.Cryptography
+nuget WebSharper
 nuget WebSharper.FSharp
 nuget WebSharper.MaterialUI
 nuget WebSharper.Templates
 nuget WebSharper.UI
-nuget WebSharper.Warp
+nuget WebSharper.AspNetCore
+nuget WebSharper.AspNetCore.WebSocket

@@ -6,4 +6,9 @@ Akka.DistributedData
 Akka.Serialization.Hyperion
 MongoDB.Driver
 MongoDB.Bson
+MongoDB.FSharp
 WebSharper
+WebSharper.FSharp
+WebSharper.AspNetCore
+WebSharper.AspNetCore.WebSocket
+WebSharper.UI
