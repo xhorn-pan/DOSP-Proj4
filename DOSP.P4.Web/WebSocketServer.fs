@@ -6,15 +6,22 @@ open Akka.Actor
 open Akka.FSharp
 open DOSP.P4.Common.Utils
 
+open NSec.Cryptography
+
+let getEd25519Key () =
+    let alg = SignatureAlgorithm.Ed25519
+    let priKey = Key.Create alg
+
+    let priKeyExp =
+        priKey.Export KeyBlobFormat.PkixPrivateKey
+
+    priKeyExp
+
 // TODO add akka.net
 [<JavaScript; NamedUnionCases>]
-type C2SMessage =
-    | Request1 of str: string []
-    | Request2 of int: int []
+type C2SMessage = Request of str: string []
 
-and [<JavaScript; NamedUnionCases "type">] S2CMessage =
-    | [<Name "int">] Response2 of value: int
-    | [<Name "string">] Response1 of value: string
+and [<JavaScript; NamedUnionCases "type">] S2CMessage = | [<Name "string">] Response of value: string
 
 
 let config = ConfigurationLoader.load ()
@@ -28,12 +35,9 @@ let wsConnector (client: WebSocketClient<S2CMessage, C2SMessage>) =
                     let! untypeMessage = mailbox.Receive()
 
                     match untypeMessage with
-                    | Request1 s ->
+                    | Request s ->
                         logErrorf mailbox "get msg: %A" s
-                        client.PostAsync(Response1 s.[0]) |> Async.Start
-                    | Request2 i ->
-                        logErrorf mailbox "get msg: %A" i
-                        client.PostAsync(Response2 i.[0]) |> Async.Start
+                        client.PostAsync(Response s.[0]) |> Async.Start
 
                     return! loop sender
                 }
@@ -69,7 +73,7 @@ let Start (): StatefulAgent<S2CMessage, C2SMessage, int> =
                                return state + 1
                            | Error exn ->
                                eprintfn "Error in WebSocket server connected to %s: %s" clientIp exn.Message
-                               do! client.PostAsync(Response1("Error: " + exn.Message))
+                               do! client.PostAsync(Response("Error: " + exn.Message))
                                return state
                            | Close ->
                                dprintfn "Closed connection to %s" clientIp

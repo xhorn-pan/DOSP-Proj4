@@ -2,26 +2,48 @@ module DOSP.P4.Web.WebSocketClient
 
 open WebSharper
 open WebSharper.JavaScript
+open WebSharper.Json
 open WebSharper.UI.Html
 open WebSharper.UI.Client
 open WebSharper.AspNetCore.WebSocket
 open WebSharper.AspNetCore.WebSocket.Client
 
+open WebSharper.Core.Resources
+
 module Server = WebSocketServer
+
+type Sodium() =
+    inherit BaseResource("sodium.js")
+
+[<assembly:Require(typeof<Sodium>)>]
+do ()
+
+[<Direct """
+    var kp = sodium.crypto_kx_keypair();
+    return {'pub': sodium.to_hex(kp.publicKey), 'pri': sodium.to_hex(kp.privateKey)};
+""">]
+let genKeyX25519 () = X(obj)
+
+[<JavaScript>]
+type WSClientUser =
+    { [<Name "name">]
+      Name: string
+      [<Name "pri-key">]
+      Key: string } // hex
 
 [<JavaScript>]
 let WebSocketTest (endpoint: WebSocketEndpoint<Server.S2CMessage, Server.C2SMessage>) =
-    let container = Elt.pre [] []
+
+    let console = Elt.pre [] []
 
     let writen fmt =
         Printf.ksprintf (fun s ->
             JS.Document.CreateTextNode(s + "\n")
-            |> container.Dom.AppendChild
+            |> console.Dom.AppendChild
             |> ignore) fmt
 
     async {
         do writen "I DON'T KNOW WHAT I AM DOING"
-
         let! server =
             ConnectStateful endpoint
             <| fun server ->
@@ -32,8 +54,7 @@ let WebSocketTest (endpoint: WebSocketEndpoint<Server.S2CMessage, Server.C2SMess
                                    match msg with
                                    | Message data ->
                                        match data with
-                                       | Server.Response1 x -> writen "Response1 %s (state %i)" x state
-                                       | Server.Response2 x -> writen "Response2 %i (state %i)" x state
+                                       | Server.Response x -> writen "Response %s (state %i)" x state
 
                                        return (state + 1)
                                    | Close ->
@@ -48,18 +69,18 @@ let WebSocketTest (endpoint: WebSocketEndpoint<Server.S2CMessage, Server.C2SMess
                                })
                 }
 
-        let lotsOfHellos = "Hello" |> Array.create 1000
-
-        let lotsOf123s = 123 |> Array.create 1000
+        let lotsOfHellos =
+            genKeyX25519 ()
+            |> Json.Stringify
+            |> Array.create 2
 
         while true do
             do! Async.Sleep 1000
-            server.Post(Server.Request1 [| "Hello" |])
-            do! Async.Sleep 1000
-            server.Post(Server.Request2 lotsOf123s)
+            server.Post(Server.Request lotsOfHellos)
 
     }
     |> Async.Start
+    let container = Elt.div [] [ console ]
     container
 
 let MyEndPoint (url: string): WebSharper.AspNetCore.WebSocket.WebSocketEndpoint<Server.S2CMessage, Server.C2SMessage> =

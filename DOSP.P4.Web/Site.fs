@@ -1,35 +1,37 @@
-module DOSP.P4.Web.Website
+namespace DOSP.P4.Web
 
-open WebSharper
-open WebSharper.AspNetCore
-open WebSharper.JavaScript
-open WebSharper.Sitelets
-open WebSharper.UI
-open WebSharper.UI.Html
-open WebSharper.UI.Templating
-open WebSharper.UI.Server
-open Microsoft.Extensions.Logging
+module Website =
 
-type EndPoint = | [<EndPoint "/">] Home
+    open WebSharper
+    open WebSharper.AspNetCore
+    open WebSharper.JavaScript
+    open WebSharper.Sitelets
+    open WebSharper.UI
+    open WebSharper.UI.Html
+    open WebSharper.UI.Templating
+    open WebSharper.UI.Server
+    open Microsoft.Extensions.Logging
 
-type MainTemplate = Templating.Template<"Main.html", clientLoad=ClientLoad.FromDocument>
+    type EndPoint = | [<EndPoint "/">] Home
 
-[<JavaScript>]
-module Client =
-    let Main wsep =
-        MainTemplate.Body().WebSocketTest(WebSocketClient.WebSocketTest wsep).Doc()
+    type MainTemplate = Templating.Template<"Main.html", clientLoad=ClientLoad.FromDocument>
 
-type MyWebSite(logger: ILogger<MyWebSite>) =
-    inherit SiteletService<EndPoint>()
+    [<JavaScript>]
+    module Client =
+        let Main wsep =
+            MainTemplate.Body().WebSocketTest(WebSocketClient.WebSocketTest wsep).Doc()
 
-    override this.Sitelet =
-        Application.MultiPage(fun (ctx: Context<_>) endpoint ->
-            match endpoint with
-            | EndPoint.Home ->
-                let wsep =
-                    WebSocketClient.MyEndPoint(ctx.RequestUri.ToString())
+    type MyWebSite(logger: ILogger<MyWebSite>) =
+        inherit SiteletService<EndPoint>()
 
-                MainTemplate().Main(client <@ Client.Main wsep @>).Doc()
-                |> Content.Page
+        override this.Sitelet =
+            Application.MultiPage(fun (ctx: Context<_>) endpoint ->
+                match endpoint with
+                | EndPoint.Home ->
+                    let wsep =
+                        WebSocketClient.MyEndPoint(ctx.RequestUri.ToString())
 
-            )
+                    MainTemplate().Main(client <@ Client.Main wsep @>).Doc()
+                    |> Content.Page
+
+                )

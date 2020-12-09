@@ -152,6 +152,7 @@ NUGET
     NSec.Cryptography (20.2)
       libsodium (>= 1.0.18 < 1.0.19)
       System.Runtime.CompilerServices.Unsafe (>= 4.7)
+    Portable.BouncyCastle (1.8.8)
     runtime.debian.8-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3.3)
     runtime.debian.9-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3.3)
     runtime.fedora.23-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3.3)

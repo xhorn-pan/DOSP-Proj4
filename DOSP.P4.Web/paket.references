@@ -12,3 +12,4 @@ WebSharper.FSharp
 WebSharper.AspNetCore
 WebSharper.AspNetCore.WebSocket
 WebSharper.UI
+NSec.Cryptography
