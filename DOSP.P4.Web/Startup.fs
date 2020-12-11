@@ -10,10 +10,14 @@ open Microsoft.Extensions.DependencyInjection
 open Microsoft.Extensions.Hosting
 open WebSharper.AspNetCore
 open WebSharper.AspNetCore.WebSocket
+open Microsoft.AspNetCore.Server.Kestrel.Core
 
 type Startup() =
 
     member this.ConfigureServices(services: IServiceCollection) =
+        services.Configure<KestrelServerOptions>(fun (options: KestrelServerOptions) ->
+            options.AllowSynchronousIO <- true)
+        |> ignore
         services.AddSitelet<Website.MyWebSite>().AddAuthentication("WebSharper")
             .AddCookie("WebSharper", (fun options -> ()))
         |> ignore

@@ -5,7 +5,7 @@ open WebSharper.AspNetCore.WebSocket.Server
 open Akka.Actor
 open Akka.FSharp
 open DOSP.P4.Common.Utils
-
+open DOSP.P4.Common.Messages.User
 open NSec.Cryptography
 
 let getEd25519Key () =
@@ -19,7 +19,7 @@ let getEd25519Key () =
 
 // TODO add akka.net
 [<JavaScript; NamedUnionCases>]
-type C2SMessage = Request of str: string []
+type C2SMessage = Request of str: string
 
 and [<JavaScript; NamedUnionCases "type">] S2CMessage = | [<Name "string">] Response of value: string
 
@@ -36,8 +36,13 @@ let wsConnector (client: WebSocketClient<S2CMessage, C2SMessage>) =
 
                     match untypeMessage with
                     | Request s ->
-                        logErrorf mailbox "get msg: %A" s
-                        client.PostAsync(Response s.[0]) |> Async.Start
+
+                        let j: obj = s |> Json.Deserialize
+                        match j with
+                        | :? WSServerUser as user -> logErrorf mailbox "get user reg: %A" user
+                        | _ -> logErrorf mailbox "get msg: %A" j
+
+                        client.PostAsync(Response s) |> Async.Start
 
                     return! loop sender
                 }

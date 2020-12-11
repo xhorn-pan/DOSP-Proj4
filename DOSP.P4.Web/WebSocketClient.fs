@@ -9,6 +9,8 @@ open WebSharper.AspNetCore.WebSocket
 open WebSharper.AspNetCore.WebSocket.Client
 
 open WebSharper.Core.Resources
+open DOSP.P4.Web.RESTClient
+open DOSP.P4.Web.RESTClient.ApiClient
 
 module Server = WebSocketServer
 
@@ -18,23 +20,40 @@ type Sodium() =
 [<assembly:Require(typeof<Sodium>)>]
 do ()
 
+[<JavaScript>]
+type CUser =
+    { [<Name "_id">]
+      Id: string
+      [<Name "name">]
+      Name: string
+      [<Name "ckey">]
+      PriKey: string }
+
 [<Direct """
     var kp = sodium.crypto_kx_keypair();
-    return {'pub': sodium.to_hex(kp.publicKey), 'pri': sodium.to_hex(kp.privateKey)};
+    return {'skey': sodium.to_hex(kp.publicKey), 'ckey': sodium.to_hex(kp.privateKey)};
 """>]
 let genKeyX25519 () = X(obj)
 
+[<Direct "{'_id': '', 'name': $name, 'skey': $key.skey}">]
+let getUserForReg (name: string) key = X(obj)
+
+[<Direct "{'_id': '', 'name': $name, 'ckey': $key.ckey}">]
+let getUserForClient (name: string) key = X(obj)
+
 [<JavaScript>]
-type WSClientUser =
-    { [<Name "name">]
-      Name: string
-      [<Name "pri-key">]
-      Key: string } // hex
+let regNewUser (userName: string) =
+    let key = genKeyX25519 () //|> Json.Decode<UserKey>
+
+    let su: User = getUserForReg userName key
+    let cu: CUser = getUserForClient userName key
+    (su, cu)
 
 [<JavaScript>]
 let WebSocketTest (endpoint: WebSocketEndpoint<Server.S2CMessage, Server.C2SMessage>) =
-
+    let container = Elt.div [] []
     let console = Elt.pre [] []
+    console |> Doc.RunAppend container.Dom |> ignore
 
     let writen fmt =
         Printf.ksprintf (fun s ->
@@ -69,18 +88,56 @@ let WebSocketTest (endpoint: WebSocketEndpoint<Server.S2CMessage, Server.C2SMess
                                })
                 }
 
-        let lotsOfHellos =
-            genKeyX25519 ()
-            |> Json.Stringify
-            |> Array.create 2
 
-        while true do
-            do! Async.Sleep 1000
-            server.Post(Server.Request lotsOfHellos)
+        let nuButton =
+            button [ attr.id "new-user"
+                     on.click (fun _ _ ->
+                         async {
+                             let (su, cu) = regNewUser "test"
+
+                             let! uid = api.RegUser su
+
+                             match uid with
+                             | AsyncApi.Failure err -> writen "reg user err %A" err
+                             | AsyncApi.Success id -> JS.Window.LocalStorage.SetItem(id, cu.PriKey)
+
+                         }
+                         |> AsyncApi.start) ] [
+                text "new User"
+            ]
+
+        let uButton =
+            button [ attr.id "get-users"
+                     on.click (fun _ _ ->
+                         async {
+                             let! resp = api.GetUsers()
+
+                             match resp with
+                             | AsyncApi.Failure err -> writen "get user err %A" err
+                             | _ -> ()
+
+                             return resp
+                         }
+                         |> Async.map (fun u ->
+                             match u with
+                             | AsyncApi.Success user ->
+                                 user
+                                 |> Seq.iter (fun usr -> writen "get user %A" usr)
+                             | _ -> ())
+                         |> Async.Start) ] [
+                text "get Users"
+            ]
+
+        nuButton |> Doc.RunAppend container.Dom |> ignore
+
+        uButton |> Doc.RunAppend container.Dom |> ignore
+    // while true do
+    //     do! Async.Sleep 1000
+    //     server.Post(Server.Request lotsOfHellos)
 
     }
     |> Async.Start
-    let container = Elt.div [] [ console ]
+
     container
 
 let MyEndPoint (url: string): WebSharper.AspNetCore.WebSocket.WebSocketEndpoint<Server.S2CMessage, Server.C2SMessage> =

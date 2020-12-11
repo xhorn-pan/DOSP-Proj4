@@ -5,6 +5,8 @@
   <ItemGroup>
 
     <Content Include="paket.references" />
+    <Compile Include="RESTClient.fs" />
+    <Compile Include="RESTServer.fs" />
     <Compile Include="WebSocketServer.fs" />
     <Compile Include="WebSocketClient.fs" />
     <Compile Include="Remoting.fs" />

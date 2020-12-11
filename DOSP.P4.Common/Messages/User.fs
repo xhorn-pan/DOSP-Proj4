@@ -6,13 +6,52 @@ namespace DOSP.P4.Common.Messages
 module User =
     open MongoDB.Bson
     open WebSharper
+    open FSharp.Core
+
+    type UserKey =
+        { [<Name "skey">]
+          SKey: string
+          [<Name "ckey">]
+          CKey: string }
+
+    type UserNameWithId =
+        { [<Name "_id">]
+          Id: string option
+          [<Name "name">]
+          Name: string }
+
+    // for client, hold the private key
+    [<JavaScript>]
+    type WSClientUser =
+        { [<Name "user">]
+          User: UserNameWithId
+          [<Name "ckey">]
+          CKey: string } // hex
+
+    // for server register, send the public key
+    [<JavaScript>]
+    type WSServerUser =
+        { [<Name "user">]
+          User: UserNameWithId
+          [<Name "skey">]
+          SKey: string } // hex
 
     [<JavaScript>]
     type User =
-        { [<Name "_id">]
-          Id: string
-          [<Name "name">]
-          Name: string }
+        { [<Name "user">]
+          User: UserNameWithId
+          [<Name "keys">]
+          Keys: UserKey }
+
+    // [<Stub>]
+    // member this.User4Server(): WSServerUser =
+    //     { User = this.User
+    //       Key = this.Keys.PubKey }
+
+    // [<Stub>]
+    // member this.User4Client(): WSClientUser =
+    //     { User = this.User
+    //       Key = this.Keys.PriKey }
 
     [<JavaScript; NamedUnionCases "user_cmd_type">]
     type UserCmdType =
@@ -23,10 +62,11 @@ module User =
     [<JavaScript>]
     type UserCmd = { Cmd: UserCmdType; User: User }
 
-    [<JavaScript; Name "create_user">]
+    [<Name "create_user">]
     let CreateUser (name: string) =
-        let id = BsonObjectId(ObjectId.GenerateNewId())
-        { Id = id.ToString(); Name = name }
+        let id = "_id_" + name
+        { Id = Some(id.ToString())
+          Name = name }
 
     [<JavaScript; Name "register_user">]
     let RegisterUser (u: User) = { Cmd = Register; User = u }

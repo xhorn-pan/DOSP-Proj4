@@ -12,7 +12,25 @@ module Website =
     open WebSharper.UI.Server
     open Microsoft.Extensions.Logging
 
-    type EndPoint = | [<EndPoint "/">] Home
+    open RESTServer
+
+
+    type EndPoint =
+        | [<EndPoint "/">] Home
+        | [<EndPoint "/api">] API of Cors<Model.APIEndPoint>
+
+    let JsonAPI (result: Model.APIResult<'T>): Async<Content<EndPoint>> =
+        match result with
+        | Ok value -> Content.Json value
+        | Error (status, error) -> Content.Json error |> Content.SetStatus status
+        |> Content.WithContentType "application/json"
+
+    let APIContent logger (ep: Model.APIEndPoint): Async<Content<EndPoint>> =
+        match ep with
+        | Model.GetUsers -> JsonAPI(Backend.GetUsers logger)
+        | Model.GetUser id -> JsonAPI(Backend.GetUser logger id)
+        | Model.CreateUser user -> JsonAPI(Backend.CreateUser logger user)
+        | Model.PostUserTest -> JsonAPI(Backend.PostUserTest logger)
 
     type MainTemplate = Templating.Template<"Main.html", clientLoad=ClientLoad.FromDocument>
 
@@ -33,5 +51,8 @@ module Website =
 
                     MainTemplate().Main(client <@ Client.Main wsep @>).Doc()
                     |> Content.Page
-
-                )
+                | EndPoint.API endpoint ->
+                    Content.Cors endpoint (fun allows ->
+                        { allows with
+                              Origins = [ "http://localhost:5000" ]
+                              Headers = [ "Content-Type" ] }) (APIContent <| logger))
