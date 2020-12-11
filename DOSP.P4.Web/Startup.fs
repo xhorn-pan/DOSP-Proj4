@@ -12,6 +12,7 @@ open WebSharper.AspNetCore
 open WebSharper.AspNetCore.WebSocket
 open Microsoft.AspNetCore.Server.Kestrel.Core
 
+
 type Startup() =
 
     member this.ConfigureServices(services: IServiceCollection) =
@@ -31,7 +32,7 @@ type Startup() =
            ws.UseWebSocket
                ("ws",
                 (fun wsws ->
-                    wsws.Use(WebSocketServer.Start()).JsonEncoding(JsonEncoding.Readable)
+                    wsws.Use(Backend.WebSocketServer.Start()).JsonEncoding(JsonEncoding.Readable)
                     |> ignore))
            |> ignore).UseStaticFiles()
            .Run(fun context ->

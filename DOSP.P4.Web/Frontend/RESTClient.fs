@@ -1,4 +1,4 @@
-namespace DOSP.P4.Web
+namespace DOSP.P4.Web.Frontend
 
 module RESTClient =
     open WebSharper

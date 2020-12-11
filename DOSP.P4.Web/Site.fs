@@ -12,7 +12,8 @@ module Website =
     open WebSharper.UI.Server
     open Microsoft.Extensions.Logging
 
-    open RESTServer
+    open Backend.RESTServer
+    open Frontend.WebSocketClient
 
 
     type EndPoint =
@@ -37,7 +38,7 @@ module Website =
     [<JavaScript>]
     module Client =
         let Main wsep =
-            MainTemplate.Body().WebSocketTest(WebSocketClient.WebSocketTest wsep).Doc()
+            MainTemplate.Body().WebSocketTest(WebSocketTest wsep).Doc()
 
     type MyWebSite(logger: ILogger<MyWebSite>) =
         inherit SiteletService<EndPoint>()
@@ -46,8 +47,7 @@ module Website =
             Application.MultiPage(fun (ctx: Context<_>) endpoint ->
                 match endpoint with
                 | EndPoint.Home ->
-                    let wsep =
-                        WebSocketClient.MyEndPoint(ctx.RequestUri.ToString())
+                    let wsep = MyEndPoint(ctx.RequestUri.ToString())
 
                     MainTemplate().Main(client <@ Client.Main wsep @>).Doc()
                     |> Content.Page
