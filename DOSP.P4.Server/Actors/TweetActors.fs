@@ -17,15 +17,17 @@ module TweetActors =
     open DOSP.P4.Common.Messages.EngineResp
     open MongoDB.Bson
     open DOSP.P4.Common.Messages.Tweet
+    open DOSP.P4.Common.Utils
     open Common
 
     let tSaveActor (mailbox: Actor<Tweet * IActorRef>) =
-        let db = P4GetCollection<Tweet> "tweet"
+        let db = DB.P4GetCollection<Tweet> "tweet"
 
         let rec loop () =
             actor {
                 let! (tw, client) = mailbox.Receive()
                 // let t = getTweet tc.User tc.Msg
+                logErrorf mailbox "save tweet: %A" tw
 
                 try
                     db.InsertOneAsync(tw).GetAwaiter().GetResult()
@@ -45,7 +47,7 @@ module TweetActors =
         let rec loop () =
             actor {
                 let! (tw, client) = mailbox.Receive()
-                let uid = tw.User.Id.ToString()
+                let uid = tw.Uid
 
                 mediator
                 <! PublishSubscribe.Publish("tweet_" + uid, tw)
@@ -58,7 +60,7 @@ module TweetActors =
         loop ()
 
     let TweetQueryActor (mailbox: Actor<QueryMsg>) =
-        let db = P4GetCollection<Tweet> "tweet"
+        let db = DB.P4GetCollection<Tweet> "tweet"
 
         let rec loop () =
             actor {

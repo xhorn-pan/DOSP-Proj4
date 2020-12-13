@@ -10,11 +10,11 @@ module FollowActors =
     open Akka.DistributedData
     open DOSP.P4.Common.Messages.EngineResp
     open DOSP.P4.Common.Messages.Follow
-    open Common
+    open DOSP.P4.Common.Utils
 
     let FollowActor (mailbox: Actor<FollowCmd>) =
         let fDb =
-            P4GetCollection<FollowCollection> "follow"
+            DB.P4GetCollection<FollowCollection> "follow"
 
         let rec loop () =
             actor {

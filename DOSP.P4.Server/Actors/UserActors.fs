@@ -11,12 +11,14 @@ module UserActors =
     open MongoDB.Driver
     open MongoDB.FSharp
     open MongoDB.Bson.Serialization
+    open DOSP.P4.Common.Utils
     open DOSP.P4.Common.Messages.EngineResp
     open DOSP.P4.Common.Messages.User
     open DOSP.P4.Common.Messages.Follow
+
     open Common
 
-    type UserSave = UserSave of User * IActorRef * IWriteConsistency
+    type UserSave = UserSave of SUser * IActorRef * IWriteConsistency
 
     let ignoreIdInFollowCollection () =
         BsonClassMap.RegisterClassMap<FollowCollection>(fun cm ->
@@ -24,8 +26,8 @@ module UserActors =
             cm.SetIgnoreExtraElements(true))
         |> ignore
 
-    let userRegisterActor (mailbox: Actor<User * IActorRef>) =
-        let uDb = P4GetCollection<User> "user"
+    let userRegisterActor (mailbox: Actor<SUser * IActorRef>) =
+        let uDb = DB.P4GetCollection<SUser> "user"
 
         let rec loop () =
             actor {
@@ -35,19 +37,20 @@ module UserActors =
                     uDb.InsertOneAsync(user).GetAwaiter().GetResult()
                 with _ -> client <! RespFail("user exists")
 
-                client <! RespSucc("user register successful")
+                client
+                <! RespSucc(sprintf "user register succ: %A" user)
 
                 return! loop ()
             }
 
         loop ()
 
-    let userLoginActor (mailbox: Actor<User * IActorRef>) =
+    let userLoginActor (mailbox: Actor<SUser * IActorRef>) =
         let mediator =
             PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
 
         let fDb =
-            P4GetCollection<FollowCollection> "follow"
+            DB.P4GetCollection<FollowCollection> "follow"
 
         let rec loop () =
             actor {
@@ -76,12 +79,12 @@ module UserActors =
 
         loop ()
 
-    let userLogoutActor (mailbox: Actor<User * IActorRef>) =
+    let userLogoutActor (mailbox: Actor<SUser * IActorRef>) =
         let mediator =
             PublishSubscribe.DistributedPubSub.Get(mailbox.Context.System).Mediator
 
         let fDb =
-            P4GetCollection<FollowCollection> "follow"
+            DB.P4GetCollection<FollowCollection> "follow"
 
         let rec loop () =
             actor {
@@ -126,9 +129,7 @@ module UserActors =
                         getChildActor "user-register" userRegisterActor mailbox
 
                     uActor <! (user, client)
-                | Login -> //
-
-                    // DONE NEXT login sub following, should get notify when following user tweet
+                | Login ->
                     let aRef =
                         getChildActor "user-login" userLoginActor mailbox
 

@@ -21,16 +21,10 @@ module Follow =
         { Cmd = Follow
           Col = { UserId = uid; FollowerId = fid } }
 
-    let FollowUserCmd (u: User) (f: User) =
-        match u.User.Id, f.User.Id with
-        | Some (uid), Some (fid) -> FollowUserIdCmd uid fid
-        | _ -> failwith "User must have id"
+    let FollowUserCmd (u: SUser) (f: SUser) = FollowUserIdCmd u.Id f.Id
 
     let UnfollowUserIdCmd (uid: string) (fid: string) =
         { Cmd = Unfollow
           Col = { UserId = uid; FollowerId = fid } }
 
-    let UnfollowUserCmd (u: User) (f: User) =
-        match u.User.Id, f.User.Id with
-        | Some (uid), Some (fid) -> UnfollowUserIdCmd uid fid
-        | _ -> failwith "User must have id"
+    let UnfollowUserCmd (u: SUser) (f: SUser) = UnfollowUserIdCmd u.Id f.Id

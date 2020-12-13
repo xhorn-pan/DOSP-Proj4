@@ -5,74 +5,43 @@ namespace DOSP.P4.Common.Messages
 
 module User =
     open MongoDB.Bson
-    open WebSharper
-    open FSharp.Core
+    open System
 
-    type UserKey =
-        { [<Name "skey">]
-          SKey: string
-          [<Name "ckey">]
-          CKey: string }
+    let usernameGenerator () =
+        let nameLen = [| 4 .. 9 |]
 
-    type UserNameWithId =
-        { [<Name "_id">]
-          Id: string option
-          [<Name "name">]
-          Name: string }
+        let r = Random()
 
-    // for client, hold the private key
-    [<JavaScript>]
-    type WSClientUser =
-        { [<Name "user">]
-          User: UserNameWithId
-          [<Name "ckey">]
-          CKey: string } // hex
+        let chars =
+            Array.concat
+                ([ [| 'a' .. 'z' |]
+                   [| 'A' .. 'Z' |]
+                   [| '0' .. '9' |] ])
 
-    // for server register, send the public key
-    [<JavaScript>]
-    type WSServerUser =
-        { [<Name "user">]
-          User: UserNameWithId
-          [<Name "skey">]
-          SKey: string } // hex
+        String(Array.init nameLen.[r.Next nameLen.Length] (fun _ -> chars.[r.Next chars.Length]))
 
-    [<JavaScript>]
-    type User =
-        { [<Name "user">]
-          User: UserNameWithId
-          [<Name "keys">]
-          Keys: UserKey }
+    type SUser =
+        { Id: string
+          Name: string
+          PubKey: string }
+        static member Create(pKey: string) =
+            let id =
+                BsonObjectId(ObjectId.GenerateNewId()).ToString()
 
-    // [<Stub>]
-    // member this.User4Server(): WSServerUser =
-    //     { User = this.User
-    //       Key = this.Keys.PubKey }
+            let name = usernameGenerator ()
+            { Id = id; Name = name; PubKey = pKey }
 
-    // [<Stub>]
-    // member this.User4Client(): WSClientUser =
-    //     { User = this.User
-    //       Key = this.Keys.PriKey }
+        static member LogIOU(id: string) = { Id = id; Name = ""; PubKey = "" }
 
-    [<JavaScript; NamedUnionCases "user_cmd_type">]
     type UserCmdType =
-        | [<Constant "register">] Register
-        | [<Constant "login">] Login
-        | [<Constant "logout">] Logout
+        | Register
+        | Login
+        | Logout
 
-    [<JavaScript>]
-    type UserCmd = { Cmd: UserCmdType; User: User }
+    type UserCmd = { Cmd: UserCmdType; User: SUser }
 
-    [<Name "create_user">]
-    let CreateUser (name: string) =
-        let id = "_id_" + name
-        { Id = Some(id.ToString())
-          Name = name }
+    let RegisterUser (u: SUser) = { Cmd = Register; User = u }
 
-    [<JavaScript; Name "register_user">]
-    let RegisterUser (u: User) = { Cmd = Register; User = u }
+    let LoginUser (u: SUser) = { Cmd = Login; User = u }
 
-    [<JavaScript; Name "login_user">]
-    let LoginUser (u: User) = { Cmd = Login; User = u }
-
-    [<JavaScript; Name "logout_user">]
-    let LogoutUser (u: User) = { Cmd = Logout; User = u }
+    let LogoutUser (u: SUser) = { Cmd = Logout; User = u }

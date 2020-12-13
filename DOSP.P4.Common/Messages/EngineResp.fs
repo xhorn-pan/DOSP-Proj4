@@ -4,12 +4,9 @@
 namespace DOSP.P4.Common.Messages
 
 module EngineResp =
-    open WebSharper
-
-    [<JavaScript; NamedUnionCases "resp_type">]
     type RespType =
-        | [<Constant "success">] Succ
-        | [<Constant "failed">] Fail
+        | Succ
+        | Fail
 
     type EngineResp<'a> = { RType: RespType; Body: 'a }
 

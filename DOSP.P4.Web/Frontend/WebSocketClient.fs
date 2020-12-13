@@ -11,10 +11,11 @@ module WebSocketClient =
     open WebSharper.AspNetCore.WebSocket.Client
 
     open WebSharper.Core.Resources
-    open DOSP.P4.Web.Frontend.RESTClient
-    open DOSP.P4.Web.Frontend.RESTClient.ApiClient
+    // open DOSP.P4.Web.Frontend.RESTClient
+    // open DOSP.P4.Web.Frontend.RESTClient.ApiClient
 
-    module Server = DOSP.P4.Web.Backend.WebSocketServer
+    module WSServer = DOSP.P4.Web.Backend.WebSocketServer
+    // module RESTServer = DOSP.P4.Web.Backend.RESTServer
 
     type Sodium() =
         inherit BaseResource("sodium.js")
@@ -23,16 +24,14 @@ module WebSocketClient =
     do ()
 
     [<JavaScript>]
-    type CUser =
-        { [<Name "_id">]
-          Id: string
-          [<Name "name">]
-          Name: string
+    type Keys =
+        { [<Name "skey">]
+          PubKey: string
           [<Name "ckey">]
           PriKey: string }
 
     [<Direct """
-        var kp = sodium.crypto_kx_keypair();
+        var kp = sodium.crypto_sign_keypair();
         return {'skey': sodium.to_hex(kp.publicKey), 'ckey': sodium.to_hex(kp.privateKey)};
     """>]
     let genKeyX25519 () = X(obj)
@@ -43,19 +42,14 @@ module WebSocketClient =
     [<Direct "{'_id': '', 'name': $name, 'ckey': $key.ckey}">]
     let getUserForClient (name: string) key = X(obj)
 
-    [<JavaScript>]
-    let regNewUser (userName: string) =
-        let key = genKeyX25519 () //|> Json.Decode<UserKey>
-
-        let su: User = getUserForReg userName key
-        let cu: CUser = getUserForClient userName key
-        (su, cu)
 
     [<JavaScript>]
-    let WebSocketTest (endpoint: WebSocketEndpoint<Server.S2CMessage, Server.C2SMessage>) =
-        let container = Elt.div [] []
-        let console = Elt.pre [] []
-        console |> Doc.RunAppend container.Dom |> ignore
+    let WebSocketTest (endpoint: WebSocketEndpoint<WSServer.S2CMessage, WSServer.C2SMessage>) =
+        let container = Elt.div [ attr.id "main-container" ] []
+
+        let console =
+            Elt.pre [ attr.id "console"
+                      attr.style "position: fixed; bottom: 10px; width: 90%; height:30%" ] []
 
         let writen fmt =
             Printf.ksprintf (fun s ->
@@ -64,7 +58,7 @@ module WebSocketClient =
                 |> ignore) fmt
 
         async {
-            do writen "I DON'T KNOW WHAT I AM DOING"
+            do writen "Console: show server response"
             let! server =
                 ConnectStateful endpoint
                 <| fun server ->
@@ -75,7 +69,7 @@ module WebSocketClient =
                                        match msg with
                                        | Message data ->
                                            match data with
-                                           | Server.Response x -> writen "Response %s (state %i)" x state
+                                           | WSServer.Response x -> writen "Response %s (state %i)" x state
 
                                            return (state + 1)
                                        | Close ->
@@ -91,56 +85,80 @@ module WebSocketClient =
                     }
 
 
-            let nuButton =
-                button [ attr.id "new-user"
+            // let nuButton =
+            //     button [ attr.id "new-user"
+            //              on.click (fun _ _ ->
+            //                  async {
+            //                      let (su, cu) = regNewUser "test"
+
+            //                      let! uid = api.RegUser su
+
+            //                      match uid with
+            //                      | AsyncApi.Failure err -> writen "reg user err %A" err
+            //                      | AsyncApi.Success id -> JS.Window.LocalStorage.SetItem(id, cu.PriKey)
+
+            //                  }
+            //                  |> AsyncApi.start) ] [
+            //         text "new User"
+            //     ]
+
+            // let uButton =
+            //     button [ attr.id "get-users"
+            //              on.click (fun _ _ ->
+            //                  async {
+            //                      let! resp = api.GetUsers()
+
+            //                      match resp with
+            //                      | AsyncApi.Failure err -> writen "get user err %A" err
+            //                      | _ -> ()
+
+            //                      return resp
+            //                  }
+            //                  |> Async.map (fun u ->
+            //                      match u with
+            //                      | AsyncApi.Success user ->
+            //                          user
+            //                          |> Seq.iter (fun usr -> writen "get user %A" usr)
+            //                      | _ -> ())
+            //                  |> Async.Start) ] [
+            //         text "get Users"
+            //     ]
+
+            let wsButton =
+                button [ attr.id "ws-test"
                          on.click (fun _ _ ->
-                             async {
-                                 let (su, cu) = regNewUser "test"
-
-                                 let! uid = api.RegUser su
-
-                                 match uid with
-                                 | AsyncApi.Failure err -> writen "reg user err %A" err
-                                 | AsyncApi.Success id -> JS.Window.LocalStorage.SetItem(id, cu.PriKey)
-
-                             }
-                             |> AsyncApi.start) ] [
-                    text "new User"
-                ]
-
-            let uButton =
-                button [ attr.id "get-users"
-                         on.click (fun _ _ ->
-                             async {
-                                 let! resp = api.GetUsers()
-
-                                 match resp with
-                                 | AsyncApi.Failure err -> writen "get user err %A" err
-                                 | _ -> ()
-
-                                 return resp
-                             }
-                             |> Async.map (fun u ->
-                                 match u with
-                                 | AsyncApi.Success user ->
-                                     user
-                                     |> Seq.iter (fun usr -> writen "get user %A" usr)
-                                 | _ -> ())
+                             async { server.Post(WSServer.Request "test test") }
                              |> Async.Start) ] [
-                    text "get Users"
+                    text "ws tweet test"
                 ]
 
-            nuButton |> Doc.RunAppend container.Dom |> ignore
+            let ugButton =
+                button [ attr.id "ws-user reg"
+                         on.click (fun _ _ ->
+                             async {
+                                 let keys = genKeyX25519 () |> Json.Decode<Keys>
+                                 server.Post(WSServer.UserReg keys.PubKey)
+                             }
+                             |> Async.Start) ] [
+                    text "ws tweet test"
+                ]
 
-            uButton |> Doc.RunAppend container.Dom |> ignore
+            // nuButton |> Doc.RunAppend container.Dom |> ignore
+
+            // uButton |> Doc.RunAppend container.Dom |> ignore
+
+            wsButton |> Doc.RunAppend container.Dom |> ignore
+
+            ugButton |> Doc.RunAppend container.Dom |> ignore
         // while true do
         //     do! Async.Sleep 1000
         //     server.Post(Server.Request lotsOfHellos)
 
         }
         |> Async.Start
-
+        console |> Doc.RunAppend container.Dom |> ignore
         container
 
-    let MyEndPoint (url: string): WebSharper.AspNetCore.WebSocket.WebSocketEndpoint<Server.S2CMessage, Server.C2SMessage> =
+    let MyEndPoint (url: string)
+                   : WebSharper.AspNetCore.WebSocket.WebSocketEndpoint<WSServer.S2CMessage, WSServer.C2SMessage> =
         WebSocketEndpoint.Create(url, "/ws", JsonEncoding.Readable)

@@ -20,7 +20,7 @@ module Tweet =
 
     type Tweet =
         { Id: string
-          User: User
+          Uid: string
           Text: string
           CreateAt: DateTime
           ReTweet: bool

@@ -90,6 +90,15 @@ module RESTClient =
         open WebSharper.JQuery
         open AsyncApi
 
+        [<JavaScript>]
+        type SUser =
+            { [<Name "_id">]
+              Id: string
+              [<Name "name">]
+              Name: string
+              [<Name "skey">]
+              PubKey: string }
+
         type RequestSettings =
             { RequestType: JQuery.RequestType
               Url: string
@@ -113,17 +122,12 @@ module RESTClient =
                 |> Option.iter (fun d -> settings?data <- d)
                 settings
 
-        type User =
-            { [<Name "_id">]
-              Id: string
-              [<Name "name">]
-              Name: string
-              [<Name "skey">]
-              PubKey: string }
-
         type Api =
-            { GetUsers: unit -> Async<ApiResult<User list>>
-              RegUser: User -> Async<ApiResult<string>> }
+            { GetUsers: unit -> Async<ApiResult<SUser list>>
+              Login: string -> Async<ApiResult<string>>
+              Logout: string -> Async<ApiResult<string>>
+              TwQuery: (string option) -> (string option) -> (string option) -> Async<ApiResult<obj>>
+              RegUser: SUser -> Async<ApiResult<string>> }
         // GetUser: string -> Async<ApiResult<User>>
         // Login: (string * string) -> Async<ApiResult<unit>> }
 
@@ -185,7 +189,7 @@ module RESTClient =
                               Headers = None
                               Data = None }
 
-                    let ulist: User list = users |> unbox
+                    let ulist: SUser list = users |> unbox
 
                     return ApiResult.Success ulist
 
@@ -193,7 +197,7 @@ module RESTClient =
             }
         //|> AsyncApi.bind (tryDeserialize Json.Deserialize<User list>)
 
-        let private regUser (u: User) =
+        let private regUser (u: SUser) =
             async {
                 let url = "user"
 
@@ -211,6 +215,65 @@ module RESTClient =
             }
         //|> AsyncApi.bind (tryDeserialize Json.Deserialize<string>)
 
+        let private login id =
+            async {
+                let url = "login"
+
+                try
+                    let! succ =
+                        ajaxCall
+                            { RequestType = JQuery.RequestType.GET
+                              Url = url
+                              ContentType = None
+                              Headers = None
+                              Data = Some id }
+
+                    return ApiResult.Success(succ |> string)
+                with ex -> return matchErrorStatusCode url ex.Message
+            }
+        // |> AsyncApi.map (
+        //     fun challenge ->
+        //     let ts = System.DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+        //     let msg = sprintf "%s.%d" challenge ts
+
+
+        // )
+        let private logout id =
+            async {
+                let url = "logout"
+                try
+                    let! succ =
+                        ajaxCall
+                            { RequestType = JQuery.RequestType.GET
+                              Url = url
+                              ContentType = None
+                              Headers = None
+                              Data = Some id }
+
+                    return ApiResult.Success(succ |> string)
+                with ex -> return matchErrorStatusCode url ex.Message
+            }
+
+        let private query (uid: string option) (hashtag: string option) (mention: string option) =
+            async {
+                let url = "q"
+                try
+                    let! tws =
+                        ajaxCall
+                            { RequestType = JQuery.RequestType.POST
+                              Url = url
+                              ContentType = Some("application/json")
+                              Headers = None
+                              Data = None }
+
+                    return ApiResult.Success(tws)
+                with ex -> return matchErrorStatusCode url ex.Message
+
+            }
+
         let api =
             { GetUsers = fun () -> apiCall { return! getUsers () }
-              RegUser = fun (u: User) -> apiCall { return! regUser u } }
+              Login = fun id -> apiCall { return! login id }
+              Logout = fun id -> apiCall { return! logout id }
+              TwQuery = fun uid hashtag mention -> apiCall { return! query uid hashtag mention }
+              RegUser = fun (u: SUser) -> apiCall { return! regUser u } }

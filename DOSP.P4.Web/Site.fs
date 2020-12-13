@@ -12,14 +12,13 @@ module Website =
     open WebSharper.UI.Server
     open Microsoft.Extensions.Logging
 
-    open Backend.RESTServer
+    // open Backend.RESTServer
     open Frontend.WebSocketClient
 
 
-    type EndPoint =
-        | [<EndPoint "/">] Home
-        | [<EndPoint "/api">] API of Cors<Model.APIEndPoint>
-
+    type EndPoint = | [<EndPoint "/">] Home
+    // | [<EndPoint "/api">] API of Cors<Model.APIEndPoint>
+    (*
     let JsonAPI (result: Model.APIResult<'T>): Async<Content<EndPoint>> =
         match result with
         | Ok value -> Content.Json value
@@ -32,7 +31,9 @@ module Website =
         | Model.GetUser id -> JsonAPI(Backend.GetUser logger id)
         | Model.CreateUser user -> JsonAPI(Backend.CreateUser logger user)
         | Model.PostUserTest -> JsonAPI(Backend.PostUserTest logger)
-
+        | Model.FollowShip fc -> JsonAPI(Backend.FollowShip logger fc)
+        | Model.TwQury (qu, qht, qm) -> JsonAPI(Backend.TwQury logger (qu, qht, qm))
+*)
     type MainTemplate = Templating.Template<"Main.html", clientLoad=ClientLoad.FromDocument>
 
     [<JavaScript>]
@@ -50,9 +51,11 @@ module Website =
                     let wsep = MyEndPoint(ctx.RequestUri.ToString())
 
                     MainTemplate().Main(client <@ Client.Main wsep @>).Doc()
-                    |> Content.Page
+                    |> Content.Page)
+(*
                 | EndPoint.API endpoint ->
                     Content.Cors endpoint (fun allows ->
                         { allows with
                               Origins = [ "http://localhost:5000" ]
                               Headers = [ "Content-Type" ] }) (APIContent <| logger))
+                              *)
