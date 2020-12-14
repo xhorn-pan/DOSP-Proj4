@@ -4,18 +4,14 @@ module WebSocketClient =
 
     open WebSharper
     open WebSharper.JavaScript
-    open WebSharper.Json
+    open WebSharper.UI
     open WebSharper.UI.Html
     open WebSharper.UI.Client
     open WebSharper.AspNetCore.WebSocket
     open WebSharper.AspNetCore.WebSocket.Client
-
     open WebSharper.Core.Resources
-    // open DOSP.P4.Web.Frontend.RESTClient
-    // open DOSP.P4.Web.Frontend.RESTClient.ApiClient
 
     module WSServer = DOSP.P4.Web.Backend.WebSocketServer
-    // module RESTServer = DOSP.P4.Web.Backend.RESTServer
 
     type Sodium() =
         inherit BaseResource("sodium.js")
@@ -42,6 +38,145 @@ module WebSocketClient =
     [<Direct "{'_id': '', 'name': $name, 'ckey': $key.ckey}">]
     let getUserForClient (name: string) key = X(obj)
 
+    [<JavaScript>]
+    let newUserPanel (server: WebSocketServer<WSServer.S2CMessage, WSServer.C2SMessage>) =
+        let upContainer = Elt.div [] []
+
+        let ugButton = // user register
+            button [ on.click (fun _ _ ->
+                         async {
+                             let keys = genKeyX25519 () |> Json.Decode<Keys>
+                             server.Post(WSServer.UserReg keys.PubKey)
+                         }
+                         |> Async.Start) ] [
+                text "register new user"
+            ]
+
+        ugButton
+        |> Doc.RunAppend upContainer.Dom
+        |> ignore
+
+        let hr1 = Elt.hr [] []
+        hr1 |> Doc.RunAppend upContainer.Dom |> ignore
+        // user login by uid
+        let uid = Var.Create "enter your pid"
+        let uidInput = Doc.Input [ attr.name "user-id" ] uid
+        uidInput
+        |> Doc.RunAppend upContainer.Dom
+        |> ignore
+
+        let loginButton =
+            button [ on.click (fun _ _ ->
+                         async { server.Post(WSServer.UserLogin uid.Value) }
+                         |> Async.Start) ] [
+                text "Login"
+            ]
+
+        loginButton
+        |> Doc.RunAppend upContainer.Dom
+        |> ignore
+
+        // follow
+        // user login by uid
+        let fid =
+            Var.Create "enter uid you want to follow"
+
+        let fidInput = Doc.Input [ attr.name "foloow-id" ] fid
+        fidInput
+        |> Doc.RunAppend upContainer.Dom
+        |> ignore
+
+        let foButton =
+            button [ on.click (fun _ _ ->
+                         async { server.Post(WSServer.UserFollow(uid.Value, fid.Value)) }
+                         |> Async.Start) ] [
+                text "Follow"
+            ]
+
+        foButton
+        |> Doc.RunAppend upContainer.Dom
+        |> ignore
+
+        let hr3 = Elt.hr [] []
+        hr3 |> Doc.RunAppend upContainer.Dom |> ignore
+        // tweet
+        let twtext = Var.Create "tweet some new"
+
+        let twInput =
+            Doc.InputArea [ attr.name "user-tweet" ] twtext
+
+        twInput |> Doc.RunAppend upContainer.Dom |> ignore
+
+        let tweetButton =
+            button [ on.click (fun _ _ ->
+                         async { server.Post(WSServer.UserTweet(uid.Value, twtext.Value)) }
+                         |> Async.Start) ] [
+                text "Send Tweet"
+            ]
+
+        tweetButton
+        |> Doc.RunAppend upContainer.Dom
+        |> ignore
+
+        let hr4 = Elt.hr [] []
+        hr4 |> Doc.RunAppend upContainer.Dom |> ignore
+
+        // query uid
+        let qutext = Var.Create "query user"
+
+        let quInput =
+            Doc.Input [ attr.name "query-user" ] qutext
+
+        quInput |> Doc.RunAppend upContainer.Dom |> ignore
+
+        let quButton =
+            button [ on.click (fun _ _ ->
+                         async { server.Post(WSServer.QTofUser qutext.Value) }
+                         |> Async.Start) ] [
+                text "Search Tweet"
+            ]
+
+        quButton
+        |> Doc.RunAppend upContainer.Dom
+        |> ignore
+
+        // query hashtag
+        let qhtext = Var.Create "query hashtag"
+
+        let qhInput =
+            Doc.Input [ attr.name "query-ht" ] qhtext
+
+        qhInput |> Doc.RunAppend upContainer.Dom |> ignore
+
+        let qhButton =
+            button [ on.click (fun _ _ ->
+                         async { server.Post(WSServer.QTofHashTag qhtext.Value) }
+                         |> Async.Start) ] [
+                text "Search Tweet"
+            ]
+
+        qhButton
+        |> Doc.RunAppend upContainer.Dom
+        |> ignore
+        // query mention
+        let qmtext = Var.Create "query mention"
+
+        let qmInput = Doc.Input [ attr.name "query-m" ] qmtext
+
+        qmInput |> Doc.RunAppend upContainer.Dom |> ignore
+
+        let qmButton =
+            button [ on.click (fun _ _ ->
+                         async { server.Post(WSServer.QTofMention qmtext.Value) }
+                         |> Async.Start) ] [
+                text "Search Tweet"
+            ]
+
+        qmButton
+        |> Doc.RunAppend upContainer.Dom
+        |> ignore
+
+        upContainer
 
     [<JavaScript>]
     let WebSocketTest (endpoint: WebSocketEndpoint<WSServer.S2CMessage, WSServer.C2SMessage>) =
@@ -84,76 +219,16 @@ module WebSocketClient =
                                    })
                     }
 
-
-            // let nuButton =
-            //     button [ attr.id "new-user"
-            //              on.click (fun _ _ ->
-            //                  async {
-            //                      let (su, cu) = regNewUser "test"
-
-            //                      let! uid = api.RegUser su
-
-            //                      match uid with
-            //                      | AsyncApi.Failure err -> writen "reg user err %A" err
-            //                      | AsyncApi.Success id -> JS.Window.LocalStorage.SetItem(id, cu.PriKey)
-
-            //                  }
-            //                  |> AsyncApi.start) ] [
-            //         text "new User"
-            //     ]
-
-            // let uButton =
-            //     button [ attr.id "get-users"
-            //              on.click (fun _ _ ->
-            //                  async {
-            //                      let! resp = api.GetUsers()
-
-            //                      match resp with
-            //                      | AsyncApi.Failure err -> writen "get user err %A" err
-            //                      | _ -> ()
-
-            //                      return resp
-            //                  }
-            //                  |> Async.map (fun u ->
-            //                      match u with
-            //                      | AsyncApi.Success user ->
-            //                          user
-            //                          |> Seq.iter (fun usr -> writen "get user %A" usr)
-            //                      | _ -> ())
-            //                  |> Async.Start) ] [
-            //         text "get Users"
-            //     ]
-
-            let wsButton =
-                button [ attr.id "ws-test"
-                         on.click (fun _ _ ->
-                             async { server.Post(WSServer.Request "test test") }
-                             |> Async.Start) ] [
-                    text "ws tweet test"
+            let newUserPageButton =
+                button [ on.click (fun _ _ ->
+                             let nUP = newUserPanel server
+                             nUP |> Doc.RunAppend container.Dom |> ignore) ] [
+                    text "New User Panel"
                 ]
 
-            let ugButton =
-                button [ attr.id "ws-user reg"
-                         on.click (fun _ _ ->
-                             async {
-                                 let keys = genKeyX25519 () |> Json.Decode<Keys>
-                                 server.Post(WSServer.UserReg keys.PubKey)
-                             }
-                             |> Async.Start) ] [
-                    text "ws tweet test"
-                ]
-
-            // nuButton |> Doc.RunAppend container.Dom |> ignore
-
-            // uButton |> Doc.RunAppend container.Dom |> ignore
-
-            wsButton |> Doc.RunAppend container.Dom |> ignore
-
-            ugButton |> Doc.RunAppend container.Dom |> ignore
-        // while true do
-        //     do! Async.Sleep 1000
-        //     server.Post(Server.Request lotsOfHellos)
-
+            newUserPageButton
+            |> Doc.RunAppend container.Dom
+            |> ignore
         }
         |> Async.Start
         console |> Doc.RunAppend container.Dom |> ignore

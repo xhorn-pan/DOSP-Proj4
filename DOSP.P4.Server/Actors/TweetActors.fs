@@ -69,7 +69,7 @@ module TweetActors =
 
                 let qFilter =
                     match qm.QType with
-                    | QueryUser -> sprintf "{'User.Name': '%s'}" qm.Body
+                    | QueryUser -> sprintf "{'Uid': '%s'}" qm.Body
                     | QueryMention -> sprintf "{Mentions: {$elemMatch: {User: '%s'}}}" qm.Body
                     | QueryHashtag -> sprintf "{HashTags: {$elemMatch: {Text: '%s'}}}" qm.Body
 
@@ -82,8 +82,9 @@ module TweetActors =
                     let twts =
                         db.FindAsync(filter).GetAwaiter().GetResult().ToEnumerable()
 
-                    let resp = twts |> List.ofSeq
-                    client <! RespSucc(resp)
+                    twts |> Seq.iter (fun t -> client <! t)
+                // let resp = twts |> List.ofSeq
+                // client <! RespSucc(resp)
                 with _ -> client <! RespFail("query error")
 
                 return! loop ()
@@ -103,10 +104,14 @@ module TweetActors =
                 let! msg = mailbox.Receive()
                 let client = mailbox.Sender()
 
+                let nm =
+                    { msg with
+                          HashTags = HashTag.GetHashTags msg.Text
+                          Mentions = Mention.GetMentions msg.Text }
                 // save tweet to db
-                sRef <! (msg, client)
+                sRef <! (nm, client)
                 // publish tweet to follow
-                pRef <! (msg, client)
+                pRef <! (nm, client)
 
                 return! loop ()
             }

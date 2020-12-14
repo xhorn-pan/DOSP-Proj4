@@ -16,7 +16,12 @@ module Tweet =
         | QueryMention
         | QueryHashtag
 
-    type QueryMsg = { QType: QueryType; Body: string }
+    type QueryMsg =
+        { QType: QueryType
+          Body: string }
+        static member QueryByUserId(uid: string) = { QType = QueryUser; Body = uid }
+        static member QueryByHashtag(hashtag: string) = { QType = QueryHashtag; Body = hashtag }
+        static member QueryByMentionUid(uid: string) = { QType = QueryMention; Body = uid }
 
     type Tweet =
         { Id: string

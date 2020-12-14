@@ -67,7 +67,7 @@ module UserActors =
 
                     followingIds.ToEnumerable()
                     |> Seq.iter (fun x ->
-                        logInfof mailbox "sub %s 's tweet by %A" x.UserId client
+                        logErrorf mailbox "sub %s 's tweet by %A" x.UserId client
                         mediator
                         <! PublishSubscribe.Subscribe("tweet_" + x.UserId, client))
                 with _ -> client <! RespFail("following not working")

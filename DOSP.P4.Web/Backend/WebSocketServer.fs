@@ -1,5 +1,7 @@
 namespace DOSP.P4.Web.Backend
 
+open WebSharper.UI.Server
+
 module WebSocketServer =
     open System
     open WebSharper
@@ -23,9 +25,9 @@ module WebSocketServer =
 
         priKeyExp
 
-    let TweetTweet (msg: string): Tweet =
+    let TweetTweet (uid: string) (msg: string): Tweet =
         { Id = BsonObjectId(ObjectId.GenerateNewId()).ToString()
-          Uid = "test_user"
+          Uid = uid
           Text = msg
           CreateAt = DateTime.Now
           ReTweet = false
@@ -41,12 +43,14 @@ module WebSocketServer =
         | [<Name "user-login">] UserLogin of uid: string
         | [<Name "user-logout">] UserLogout of uid: string
         | [<Name "user-follow">] UserFollow of uid: string * fid: string
-        | [<Name "user-tweet">] UserTweet of tweet: string // all tweet deserialized into string
-    // | QTofUser of uid: string
-    // | QTofHashTage of hashtag: string
-    // | QTofMention of mention: string
+        | [<Name "user-tweet">] UserTweet of uid: string * tweet: string // all tweet deserialized into string
+        | [<Name "query-user">] QTofUser of uid: string
+        | [<Name "query-hashtag">] QTofHashTag of hashtag: string
+        | [<Name "query-mention">] QTofMention of mention: string
 
-    and [<JavaScript; NamedUnionCases "s2c">] S2CMessage = | [<Name "string">] Response of value: string
+    and [<JavaScript; NamedUnionCases "s2c">] S2CMessage =
+        | [<Name "string">] Response of value: string
+        | [<Name "challenge">] Challenge of value: string
 
 
     let config = ConfigurationLoader.load ()
@@ -80,31 +84,40 @@ module WebSocketServer =
                                 client.PostAsync(Response s) |> Async.Start
                             | UserReg pkey ->
                                 let user = SUser.Create pkey
-                                uRef <! RegisterUser user
+                                uRef <! UserCmd.RegisterUser user
 
                             | UserLogin uid ->
                                 let user = SUser.LogIOU uid
-                                uRef <! LoginUser user
+                                uRef <! UserCmd.LoginUser user
                             | UserLogout uid ->
                                 let user = SUser.LogIOU uid
-                                uRef <! LogoutUser user
-                            | UserFollow (uid, fid) -> fRef <! FollowUserIdCmd uid fid
+                                uRef <! UserCmd.LogoutUser user
+                            | UserFollow (uid, fid) -> fRef <! FollowCmd.FollowUserIdCmd uid fid
+                            | UserTweet (uid, tw) -> tRef <! TweetTweet uid tw
+                            | QTofUser uid -> qRef <! QueryMsg.QueryByUserId uid
+                            | QTofHashTag ht -> qRef <! QueryMsg.QueryByHashtag ht
+                            | QTofMention uid -> qRef <! QueryMsg.QueryByMentionUid uid
                             | _ ->
                                 client.PostAsync(Response "not impl-ed")
                                 |> Async.Start
-                        | :? (EngineResp<obj>) as msg ->
-                            client.PostAsync(Response(sprintf "resp: %A" msg))
+                        | :? Tweet as tw ->
+                            client.PostAsync(Response(Json.Serialize tw))
                             |> Async.Start
                         | msg ->
-                            client.PostAsync(Response(sprintf "catch all resp: %A" msg))
-                            |> Async.Start
+                            let resp =
+                                Response(sprintf "catch all resp: %A" msg)
+
+                            client.PostAsync resp |> Async.Start
 
                         return! loop sender
                     }
 
                 loop None
 
-            spawn system "ws-client" <| wsClientActor client
+            let actorId =
+                sprintf "ws-client-%s" client.Connection.Context.Connection.Id
+
+            spawn system actorId <| wsClientActor client
         with e ->
             printfn "%A" e
             reraise ()
@@ -119,24 +132,23 @@ module WebSocketServer =
 
         fun client ->
             async {
-                let clientIp =
-                    client.Connection.Context.Connection.RemoteIpAddress.ToString()
+                let clientId = client.Connection.Context.Connection.Id
 
                 let aRef = wsConnector client
                 return 0,
                        (fun state msg ->
                            async {
-                               dprintfn "Received message #%i from %s" state clientIp
+                               dprintfn "Received message #%i from %s" state clientId
                                match msg with
                                | Message data ->
                                    aRef <! data
                                    return state + 1
                                | Error exn ->
-                                   eprintfn "Error in WebSocket server connected to %s: %s" clientIp exn.Message
+                                   eprintfn "Error in WebSocket server connected to %s: %s" clientId exn.Message
                                    do! client.PostAsync(Response("Error: " + exn.Message))
                                    return state
                                | Close ->
-                                   dprintfn "Closed connection to %s" clientIp
+                                   dprintfn "Closed connection to %s" clientId
                                    return state
                            })
             }

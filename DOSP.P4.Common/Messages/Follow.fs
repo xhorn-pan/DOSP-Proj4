@@ -16,15 +16,14 @@ module Follow =
     type FollowCmd =
         { Cmd: FollowType
           Col: FollowCollection }
+        static member FollowUserIdCmd (uid: string) (fid: string) =
+            { Cmd = Follow
+              Col = { UserId = uid; FollowerId = fid } }
 
-    let FollowUserIdCmd (uid: string) (fid: string) =
-        { Cmd = Follow
-          Col = { UserId = uid; FollowerId = fid } }
+        static member FollowUserCmd (u: SUser) (f: SUser) = FollowCmd.FollowUserIdCmd u.Id f.Id
 
-    let FollowUserCmd (u: SUser) (f: SUser) = FollowUserIdCmd u.Id f.Id
+        static member UnfollowUserIdCmd (uid: string) (fid: string) =
+            { Cmd = Unfollow
+              Col = { UserId = uid; FollowerId = fid } }
 
-    let UnfollowUserIdCmd (uid: string) (fid: string) =
-        { Cmd = Unfollow
-          Col = { UserId = uid; FollowerId = fid } }
-
-    let UnfollowUserCmd (u: SUser) (f: SUser) = UnfollowUserIdCmd u.Id f.Id
+        static member UnfollowUserCmd (u: SUser) (f: SUser) = FollowCmd.UnfollowUserIdCmd u.Id f.Id

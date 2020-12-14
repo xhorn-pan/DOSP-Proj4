@@ -38,10 +38,9 @@ module User =
         | Login
         | Logout
 
-    type UserCmd = { Cmd: UserCmdType; User: SUser }
-
-    let RegisterUser (u: SUser) = { Cmd = Register; User = u }
-
-    let LoginUser (u: SUser) = { Cmd = Login; User = u }
-
-    let LogoutUser (u: SUser) = { Cmd = Logout; User = u }
+    type UserCmd =
+        { Cmd: UserCmdType
+          User: SUser }
+        static member RegisterUser(u: SUser) = { Cmd = Register; User = u }
+        static member LoginUser(u: SUser) = { Cmd = Login; User = u }
+        static member LogoutUser(u: SUser) = { Cmd = Logout; User = u }
