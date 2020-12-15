@@ -35,10 +35,9 @@ module UserActors =
 
                 try
                     uDb.InsertOneAsync(user).GetAwaiter().GetResult()
-                with _ -> client <! RespFail("user exists")
+                with _ -> client <! EngineRespError "user already exists"
 
-                client
-                <! RespSucc(sprintf "user register succ: %A" user)
+                client <! user
 
                 return! loop ()
             }
@@ -70,9 +69,9 @@ module UserActors =
                         logErrorf mailbox "sub %s 's tweet by %A" x.UserId client
                         mediator
                         <! PublishSubscribe.Subscribe("tweet_" + x.UserId, client))
-                with _ -> client <! RespFail("following not working")
+                with _ -> client <! EngineRespError("following not working")
 
-                client <! RespSucc("user login successful")
+                client <! EngineRespSucc("user login successful")
 
                 return! loop ()
             }
@@ -103,9 +102,9 @@ module UserActors =
                     |> Seq.iter (fun x ->
                         mediator
                         <! PublishSubscribe.Unsubscribe("tweet_" + x.UserId, client))
-                with _ -> client <! RespFail("following not working")
+                with _ -> client <! EngineRespError("following not working")
 
-                client <! RespSucc("user logout successful")
+                client <! EngineRespSucc("user logout successful")
 
                 return! loop ()
             }

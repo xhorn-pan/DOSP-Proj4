@@ -26,6 +26,19 @@ module WebSocketClient =
           [<Name "ckey">]
           PriKey: string }
 
+    // save and search from local storage
+    [<JavaScript>]
+    let getLocal (key: string): string option =
+        try
+            let value = JS.Window.LocalStorage.GetItem key
+            Some(value)
+
+        with ex -> None
+
+    [<JavaScript>]
+    let saveLocal (uid: string) (pubkey: string) =
+        JS.Window.LocalStorage.SetItem(uid, pubkey)
+
     [<Direct """
         var kp = sodium.crypto_sign_keypair();
         return {'skey': sodium.to_hex(kp.publicKey), 'ckey': sodium.to_hex(kp.privateKey)};
@@ -39,6 +52,23 @@ module WebSocketClient =
     let getUserForClient (name: string) key = X(obj)
 
     [<JavaScript>]
+    type SignStruct =
+        { [<Name "data">]
+          Data: string
+          [<Name "signed">]
+          Signed: string }
+
+    [<Direct """
+        var prikey = sodium.from_hex($key);
+        var now = new Date();
+        var ts = Math.floor(now.getTime() / 1000);
+        var plain = $ch + "." + ts.toString();
+        var signed = sodium.crypto_sign_detached(plain, prikey);
+        return {'data': sodium.to_hex(plain), 'signed': sodium.to_hex(signed)};
+    """>]
+    let signCh (key: string) (ch: string) = X(obj)
+
+    [<JavaScript>]
     let newUserPanel (server: WebSocketServer<WSServer.S2CMessage, WSServer.C2SMessage>) =
         let upContainer = Elt.div [] []
 
@@ -46,6 +76,7 @@ module WebSocketClient =
             button [ on.click (fun _ _ ->
                          async {
                              let keys = genKeyX25519 () |> Json.Decode<Keys>
+                             saveLocal keys.PubKey keys.PriKey
                              server.Post(WSServer.UserReg keys.PubKey)
                          }
                          |> Async.Start) ] [
@@ -67,7 +98,7 @@ module WebSocketClient =
 
         let loginButton =
             button [ on.click (fun _ _ ->
-                         async { server.Post(WSServer.UserLogin uid.Value) }
+                         async { server.Post(WSServer.UserChalleng uid.Value) }
                          |> Async.Start) ] [
                 text "Login"
             ]
@@ -81,7 +112,7 @@ module WebSocketClient =
         let fid =
             Var.Create "enter uid you want to follow"
 
-        let fidInput = Doc.Input [ attr.name "foloow-id" ] fid
+        let fidInput = Doc.Input [ attr.name "follow-id" ] fid
         fidInput
         |> Doc.RunAppend upContainer.Dom
         |> ignore
@@ -184,7 +215,7 @@ module WebSocketClient =
 
         let console =
             Elt.pre [ attr.id "console"
-                      attr.style "position: fixed; bottom: 10px; width: 90%; height:30%" ] []
+                      attr.style "position: fixed; bottom: 50px; width: 60%; height:40%" ] []
 
         let writen fmt =
             Printf.ksprintf (fun s ->
@@ -205,6 +236,28 @@ module WebSocketClient =
                                        | Message data ->
                                            match data with
                                            | WSServer.Response x -> writen "Response %s (state %i)" x state
+                                           | WSServer.URS (uid, name, pubkey) ->
+                                               writen "User reg result id: %s, name %s, key: %s " uid name pubkey
+                                               let prikey = getLocal pubkey
+                                               match prikey with
+                                               | Some pk -> saveLocal uid pk
+                                               | None ->
+                                                   writen "user lost: can not get private key with pubkey: %s" pubkey
+
+                                           | WSServer.Challenge (uid, ch) ->
+                                               writen "user %s got challenge %s from server,signing it" uid ch
+                                               let prikey = getLocal uid
+                                               match prikey with
+                                               | Some pk ->
+                                                   let signed =
+                                                       (signCh pk ch) |> Json.Decode<SignStruct>
+
+                                                   writen "signed msg: %A" signed
+                                                   async {
+                                                       server.Post(WSServer.UserLogin(uid, signed.Data, signed.Signed))
+                                                   }
+                                                   |> Async.Start
+                                               | None -> writen "user lost: key for user : %s" uid
 
                                            return (state + 1)
                                        | Close ->

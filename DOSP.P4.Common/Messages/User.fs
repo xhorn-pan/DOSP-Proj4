@@ -6,6 +6,7 @@ namespace DOSP.P4.Common.Messages
 module User =
     open MongoDB.Bson
     open System
+    open WebSharper
 
     let usernameGenerator () =
         let nameLen = [| 4 .. 9 |]

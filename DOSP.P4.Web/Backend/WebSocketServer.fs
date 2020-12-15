@@ -4,6 +4,7 @@ open WebSharper.UI.Server
 
 module WebSocketServer =
     open System
+    open System.Security.Cryptography
     open WebSharper
     open WebSharper.AspNetCore.WebSocket.Server
     open Akka.Actor
@@ -15,6 +16,7 @@ module WebSocketServer =
     open DOSP.P4.Common.Messages.Follow
     open DOSP.P4.Common.Messages.Tweet
     open MongoDB.Bson
+    open MongoDB.Driver
 
     let getEd25519Key () =
         let alg = SignatureAlgorithm.Ed25519
@@ -24,6 +26,19 @@ module WebSocketServer =
             priKey.Export KeyBlobFormat.PkixPrivateKey
 
         priKeyExp
+
+    let fromHex (s: string) =
+        s
+        |> Seq.windowed 2
+        |> Seq.mapi (fun i j -> (i, j))
+        |> Seq.filter (fun (i, j) -> i % 2 = 0)
+        |> Seq.map (fun (_, j) -> Byte.Parse(String(j), Globalization.NumberStyles.AllowHexSpecifier))
+        |> Array.ofSeq
+
+    let ByteToHex bytes =
+        bytes
+        |> Array.map (fun (x: byte) -> System.String.Format("{0:X2}", x))
+        |> String.concat System.String.Empty
 
     let TweetTweet (uid: string) (msg: string): Tweet =
         { Id = BsonObjectId(ObjectId.GenerateNewId()).ToString()
@@ -40,7 +55,8 @@ module WebSocketServer =
     type C2SMessage =
         | Request of str: string
         | [<Name "user-reg">] UserReg of pkey: string // * pubkey: string
-        | [<Name "user-login">] UserLogin of uid: string
+        | [<Name "user-challenge">] UserChalleng of uid: string
+        | [<Name "user-login">] UserLogin of uid: string * data: string * signed: string
         | [<Name "user-logout">] UserLogout of uid: string
         | [<Name "user-follow">] UserFollow of uid: string * fid: string
         | [<Name "user-tweet">] UserTweet of uid: string * tweet: string // all tweet deserialized into string
@@ -50,7 +66,8 @@ module WebSocketServer =
 
     and [<JavaScript; NamedUnionCases "s2c">] S2CMessage =
         | [<Name "string">] Response of value: string
-        | [<Name "challenge">] Challenge of value: string
+        | [<Name "user-reg-succ">] URS of uid: string * name: string * pubkey: string
+        | [<Name "challenge">] Challenge of uid: string * challenge: string
 
 
     let config = ConfigurationLoader.load ()
@@ -85,10 +102,51 @@ module WebSocketServer =
                             | UserReg pkey ->
                                 let user = SUser.Create pkey
                                 uRef <! UserCmd.RegisterUser user
+                            | UserChalleng uid ->
+                                let chal = Array.zeroCreate 32
+                                let rng = new RNGCryptoServiceProvider()
+                                rng.GetNonZeroBytes chal
+                                client.PostAsync(Challenge(uid, (chal |> ByteToHex)))
+                                |> Async.Start
 
-                            | UserLogin uid ->
-                                let user = SUser.LogIOU uid
-                                uRef <! UserCmd.LoginUser user
+                            | UserLogin (uid, data, sign) ->
+                                let udb = DB.P4GetCollection<SUser> "user"
+
+                                let user =
+                                    udb.FindAsync(sprintf "{'_id': '%s'}" uid
+                                                  |> BsonDocument.Parse
+                                                  |> BsonDocumentFilterDefinition).GetAwaiter().GetResult()
+                                       .ToEnumerable()
+                                    |> List.ofSeq
+
+
+                                let hk = user.[0].PubKey |> fromHex
+                                let alg = SignatureAlgorithm.Ed25519
+
+                                let key =
+                                    PublicKey.Import(alg, ReadOnlySpan<byte>(hk), KeyBlobFormat.RawPublicKey)
+
+                                let verified =
+                                    alg.Verify
+                                        (key, ReadOnlySpan<byte>(data |> fromHex), ReadOnlySpan<byte>(sign |> fromHex))
+
+                                if verified then
+                                    let dcode =
+                                        data |> fromHex |> Text.Encoding.ASCII.GetString
+
+                                    let ts = dcode.Split('.').[1] |> int64
+                                    let now = DateTimeOffset.Now
+                                    if (now.ToUnixTimeSeconds() - ts < 1L) then
+                                        let user = SUser.LogIOU uid
+                                        uRef <! UserCmd.LoginUser user
+                                        client.PostAsync(Response "public key verified, logged in")
+                                        |> Async.Start
+                                    else
+                                        client.PostAsync(Response "public key verify timeout, try login again")
+                                        |> Async.Start
+                                else
+                                    client.PostAsync(Response "public key verify error")
+                                    |> Async.Start
                             | UserLogout uid ->
                                 let user = SUser.LogIOU uid
                                 uRef <! UserCmd.LogoutUser user
@@ -102,6 +160,9 @@ module WebSocketServer =
                                 |> Async.Start
                         | :? Tweet as tw ->
                             client.PostAsync(Response(Json.Serialize tw))
+                            |> Async.Start
+                        | :? SUser as u ->
+                            client.PostAsync(URS(u.Id, u.Name, u.PubKey))
                             |> Async.Start
                         | msg ->
                             let resp =

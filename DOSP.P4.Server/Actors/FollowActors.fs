@@ -27,11 +27,11 @@ module FollowActors =
 
                     try
                         fDb.InsertOneAsync(uf).GetAwaiter().GetResult()
-                    with _ -> client <! RespFail("follow error")
-                    client <! RespSucc("follow successful")
+                    with _ -> client <! EngineRespError("follow error")
+                    client <! EngineRespSucc("follow successful")
                     return! loop ()
                 | Unfollow ->
-                    client <! RespSucc("unfollow not impl")
+                    client <! EngineRespSucc("unfollow not impl")
                     return! loop ()
             }
 
