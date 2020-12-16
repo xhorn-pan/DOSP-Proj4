@@ -1,19 +1,19 @@
 # how to run
 prepare environment
 
-`
+```
 dotnet restore
 dotnet tool install Paket --version 6.0.0-beta1
 dotnet paket install
 
-`
+```
 
 #start engine(server part)
 
-`
+```
 cd DOSP.P4.Server 
 dotnet run -- --seed
-`
+```
 
 if you want start multiple engine server, you can open a new terminal
 and run `dotnet run` without the seed argument
@@ -22,10 +22,10 @@ and run `dotnet run` without the seed argument
 
 start a new terminal, run the following command
 
-`
+```
 cd DOSP.P4.Client
 dotnet run -- 100 
-`
+```
 
 you will see some ERROR print, those are tweet or retweet from engine
 increase the number of users, the engine will should some unhandled
