@@ -1,4 +1,7 @@
-
+```rust
+// Name: Xinghua Pan
+// UFID: 95160902
+```
 # This implementation utilized Akka.Cluster, LibSodium.js, NSec.Cryptography
 
 # Part 2
@@ -32,10 +35,10 @@ dotnet run -- --seed
 cd DOSP.P4.Web
 dotnet run
 ```
-
+##### maybe you need copy the sodium.js to wwwroot, i am not sure how to do this in *.fsproj
 then open http://localhost:5000
 
-## code explainations
+## code explanation
 
 The websocket server is implemnted in [DOSP.P4.Web/Backend/WebSocketServer.fs](https://github.com/xhorn-pan/DOSP-Proj4/blob/main/DOSP.P4.Web/Backend/WebSocketServer.fs)
 The websocket client is implemented in [DOSP.P4.Web/Frontend/WebSocketClient.fs](https://github.com/xhorn-pan/DOSP-Proj4/blob/main/DOSP.P4.Web/Backend/WebSocketServer.fs)
