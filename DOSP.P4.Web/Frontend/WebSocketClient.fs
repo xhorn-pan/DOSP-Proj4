@@ -72,20 +72,6 @@ module WebSocketClient =
     let newUserPanel (server: WebSocketServer<WSServer.S2CMessage, WSServer.C2SMessage>) =
         let upContainer = Elt.div [] []
 
-        let ugButton = // user register
-            button [ on.click (fun _ _ ->
-                         async {
-                             let keys = genKeyX25519 () |> Json.Decode<Keys>
-                             saveLocal keys.PubKey keys.PriKey
-                             server.Post(WSServer.UserReg keys.PubKey)
-                         }
-                         |> Async.Start) ] [
-                text "register new user"
-            ]
-
-        ugButton
-        |> Doc.RunAppend upContainer.Dom
-        |> ignore
 
         let hr1 = Elt.hr [] []
         hr1 |> Doc.RunAppend upContainer.Dom |> ignore
@@ -109,8 +95,7 @@ module WebSocketClient =
 
         // follow
         // user login by uid
-        let fid =
-            Var.Create "enter uid you want to follow"
+        let fid = Var.Create "uid of your follower"
 
         let fidInput = Doc.Input [ attr.name "follow-id" ] fid
         fidInput
@@ -121,7 +106,7 @@ module WebSocketClient =
             button [ on.click (fun _ _ ->
                          async { server.Post(WSServer.UserFollow(uid.Value, fid.Value)) }
                          |> Async.Start) ] [
-                text "Follow"
+                text "Set Follower"
             ]
 
         foButton
@@ -131,7 +116,7 @@ module WebSocketClient =
         let hr3 = Elt.hr [] []
         hr3 |> Doc.RunAppend upContainer.Dom |> ignore
         // tweet
-        let twtext = Var.Create "tweet some new"
+        let twtext = Var.Create "tweet some"
 
         let twInput =
             Doc.InputArea [ attr.name "user-tweet" ] twtext
@@ -149,64 +134,27 @@ module WebSocketClient =
         |> Doc.RunAppend upContainer.Dom
         |> ignore
 
-        let hr4 = Elt.hr [] []
-        hr4 |> Doc.RunAppend upContainer.Dom |> ignore
+        let rtid = Var.Create "rt id"
+        let rtuid = Var.Create "rt uid"
+        let rtidInput = Doc.Input [ attr.name "rt-id" ] rtid
+        let rtuidInput = Doc.Input [ attr.name "rt-uid" ] rtuid
 
-        // query uid
-        let qutext = Var.Create "query user"
-
-        let quInput =
-            Doc.Input [ attr.name "query-user" ] qutext
-
-        quInput |> Doc.RunAppend upContainer.Dom |> ignore
-
-        let quButton =
+        let rtButton =
             button [ on.click (fun _ _ ->
-                         async { server.Post(WSServer.QTofUser qutext.Value) }
+                         async { server.Post(WSServer.UserRt(uid.Value, rtid.Value, rtuid.Value)) }
                          |> Async.Start) ] [
-                text "Search Tweet"
+                text "RT"
             ]
 
-        quButton
+        rtidInput
         |> Doc.RunAppend upContainer.Dom
         |> ignore
-
-        // query hashtag
-        let qhtext = Var.Create "query hashtag"
-
-        let qhInput =
-            Doc.Input [ attr.name "query-ht" ] qhtext
-
-        qhInput |> Doc.RunAppend upContainer.Dom |> ignore
-
-        let qhButton =
-            button [ on.click (fun _ _ ->
-                         async { server.Post(WSServer.QTofHashTag qhtext.Value) }
-                         |> Async.Start) ] [
-                text "Search Tweet"
-            ]
-
-        qhButton
+        rtuidInput
         |> Doc.RunAppend upContainer.Dom
         |> ignore
-        // query mention
-        let qmtext = Var.Create "query mention"
-
-        let qmInput = Doc.Input [ attr.name "query-m" ] qmtext
-
-        qmInput |> Doc.RunAppend upContainer.Dom |> ignore
-
-        let qmButton =
-            button [ on.click (fun _ _ ->
-                         async { server.Post(WSServer.QTofMention qmtext.Value) }
-                         |> Async.Start) ] [
-                text "Search Tweet"
-            ]
-
-        qmButton
+        rtButton
         |> Doc.RunAppend upContainer.Dom
         |> ignore
-
         upContainer
 
     [<JavaScript>]
@@ -215,7 +163,7 @@ module WebSocketClient =
 
         let console =
             Elt.pre [ attr.id "console"
-                      attr.style "position: fixed; bottom: 50px; width: 60%; height:40%" ] []
+                      attr.style "position: fixed; bottom: 50px; width: 60%; height:20%" ] []
 
         let writen fmt =
             Printf.ksprintf (fun s ->
@@ -258,6 +206,9 @@ module WebSocketClient =
                                                    }
                                                    |> Async.Start
                                                | None -> writen "user lost: key for user : %s" uid
+                                           | WSServer.ERF msg -> writen "Server Error: %s" msg
+                                           | WSServer.ERS msg -> writen "Server Success: %s" msg
+                                           | WSServer.T t -> writen "tweet: %s" t
 
                                            return (state + 1)
                                        | Close ->
@@ -282,10 +233,80 @@ module WebSocketClient =
             newUserPageButton
             |> Doc.RunAppend container.Dom
             |> ignore
+
+            let ugButton = // user register
+                button [ on.click (fun _ _ ->
+                             async {
+                                 let keys = genKeyX25519 () |> Json.Decode<Keys>
+                                 saveLocal keys.PubKey keys.PriKey
+                                 server.Post(WSServer.UserReg keys.PubKey)
+                             }
+                             |> Async.Start) ] [
+                    text "register new user"
+                ]
+
+            ugButton |> Doc.RunAppend container.Dom |> ignore
+
+            let hr4 = Elt.hr [] []
+
+            hr4 |> Doc.RunAppend container.Dom |> ignore
+            // query uid
+            let qutext = Var.Create "query user"
+
+            let quInput =
+                Doc.Input [ attr.name "query-user" ] qutext
+
+            quInput |> Doc.RunAppend container.Dom |> ignore
+
+            let quButton =
+                button [ on.click (fun _ _ ->
+                             async { server.Post(WSServer.QTofUser qutext.Value) }
+                             |> Async.Start) ] [
+                    text "Search Tweet"
+                ]
+
+            quButton |> Doc.RunAppend container.Dom |> ignore
+
+            // query hashtag
+            let qhtext = Var.Create "query hashtag"
+
+            let qhInput =
+                Doc.Input [ attr.name "query-ht" ] qhtext
+
+            qhInput |> Doc.RunAppend container.Dom |> ignore
+
+            let qhButton =
+                button [ on.click (fun _ _ ->
+                             async { server.Post(WSServer.QTofHashTag qhtext.Value) }
+                             |> Async.Start) ] [
+                    text "Search Tweet"
+                ]
+
+            qhButton |> Doc.RunAppend container.Dom |> ignore
+            // query mention
+            let qmtext = Var.Create "query mention"
+
+            let qmInput = Doc.Input [ attr.name "query-m" ] qmtext
+
+            qmInput |> Doc.RunAppend container.Dom |> ignore
+
+            let qmButton =
+                button [ on.click (fun _ _ ->
+                             async { server.Post(WSServer.QTofMention qmtext.Value) }
+                             |> Async.Start) ] [
+                    text "Search Tweet"
+                ]
+
+            qmButton |> Doc.RunAppend container.Dom |> ignore
+
+
+            let nUP = newUserPanel server
+
+            nUP |> Doc.RunAppend container.Dom |> ignore
         }
         |> Async.Start
-        console |> Doc.RunAppend container.Dom |> ignore
-        container
+        // console |> Doc.RunAppend container.Dom |> ignore
+        Elt.div [] [ container; console ]
 
     let MyEndPoint (url: string)
                    : WebSharper.AspNetCore.WebSocket.WebSocketEndpoint<WSServer.S2CMessage, WSServer.C2SMessage> =

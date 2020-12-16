@@ -31,9 +31,12 @@ module TweetActors =
 
                 try
                     db.InsertOneAsync(tw).GetAwaiter().GetResult()
-                with _ -> client <! EngineRespError("Tweet save failed")
+                with _ ->
+                    client
+                    <! EngineResp.NegtiveRespone("Tweet save failed")
 
-                client <! EngineRespSucc("Tweet save successful")
+                client
+                <! EngineResp.PositiveRespone("Tweet save successful")
 
                 return! loop ()
             }
@@ -53,7 +56,7 @@ module TweetActors =
                 <! PublishSubscribe.Publish("tweet_" + uid, tw)
                 //TODO mentions
                 client
-                <! EngineRespSucc("Tweet publish successful")
+                <! EngineResp.PositiveRespone("Tweet publish successful")
 
                 return! loop ()
             }
@@ -86,7 +89,7 @@ module TweetActors =
                     twts |> Seq.iter (fun t -> client <! t)
                 // let resp = twts |> List.ofSeq
                 // client <! RespSucc(resp)
-                with _ -> client <! EngineRespError("query error")
+                with _ -> client <! EngineResp.NegtiveRespone("query error")
 
                 return! loop ()
             }

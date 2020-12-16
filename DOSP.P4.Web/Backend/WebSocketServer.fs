@@ -50,6 +50,16 @@ module WebSocketServer =
           HashTags = []
           Mentions = [] }
 
+    let TweetRT (uid: string) (rtid: string) (rtuid: string) =
+        { Id = BsonObjectId(ObjectId.GenerateNewId()).ToString()
+          Uid = uid
+          Text = "RT @" + rtuid
+          CreateAt = DateTime.Now
+          ReTweet = true
+          RtId = rtid
+          HashTags = []
+          Mentions = [] }
+
     // TODO add akka.net
     [<JavaScript; NamedUnionCases "c2s">]
     type C2SMessage =
@@ -59,13 +69,17 @@ module WebSocketServer =
         | [<Name "user-login">] UserLogin of uid: string * data: string * signed: string
         | [<Name "user-logout">] UserLogout of uid: string
         | [<Name "user-follow">] UserFollow of uid: string * fid: string
-        | [<Name "user-tweet">] UserTweet of uid: string * tweet: string // all tweet deserialized into string
+        | [<Name "user-tweet">] UserTweet of uid: string * tweet: string
+        | [<Name "user-rt">] UserRt of uid: string * rtid: string * rtuid: string
         | [<Name "query-user">] QTofUser of uid: string
         | [<Name "query-hashtag">] QTofHashTag of hashtag: string
         | [<Name "query-mention">] QTofMention of mention: string
 
     and [<JavaScript; NamedUnionCases "s2c">] S2CMessage =
         | [<Name "string">] Response of value: string
+        | [<Name "tweet">] T of value: string
+        | [<Name "er-1">] ERS of msg: string
+        | [<Name "er-0">] ERF of msg: string
         | [<Name "user-reg-succ">] URS of uid: string * name: string * pubkey: string
         | [<Name "challenge">] Challenge of uid: string * challenge: string
 
@@ -73,108 +87,114 @@ module WebSocketServer =
     let config = ConfigurationLoader.load ()
     let system = ActorSystem.Create("project4", config)
 
+    let wsClientActor (client: WebSocketClient<S2CMessage, C2SMessage>) (mailbox: Actor<obj>) =
+        let tRef =
+            mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-tweet")
+
+        let uRef =
+            mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-user")
+
+        let fRef =
+            mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-follow")
+
+        let qRef =
+            mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-query")
+
+        let rec loop sender =
+            actor {
+                let! untypeMessage = mailbox.Receive()
+
+                match untypeMessage with
+                | :? C2SMessage as msg ->
+                    match msg with
+                    | Request s ->
+                        logErrorf mailbox "get msg: %A" s
+                        tRef <! TweetTweet s
+                        client.PostAsync(Response s) |> Async.Start
+                    | UserReg pkey ->
+                        let user = SUser.Create pkey
+                        uRef <! UserCmd.RegisterUser user
+                    | UserChalleng uid ->
+                        let chal = Array.zeroCreate 32
+                        let rng = new RNGCryptoServiceProvider()
+                        rng.GetNonZeroBytes chal
+                        client.PostAsync(Challenge(uid, (chal |> ByteToHex)))
+                        |> Async.Start
+
+                    | UserLogin (uid, data, sign) ->
+                        let udb = DB.P4GetCollection<SUser> "user"
+
+                        let user =
+                            udb.FindAsync(sprintf "{'_id': '%s'}" uid
+                                          |> BsonDocument.Parse
+                                          |> BsonDocumentFilterDefinition).GetAwaiter().GetResult().ToEnumerable()
+                            |> List.ofSeq
+
+
+                        let hk = user.[0].PubKey |> fromHex
+                        let alg = SignatureAlgorithm.Ed25519
+
+                        let key =
+                            PublicKey.Import(alg, ReadOnlySpan<byte>(hk), KeyBlobFormat.RawPublicKey)
+
+                        let verified =
+                            alg.Verify(key, ReadOnlySpan<byte>(data |> fromHex), ReadOnlySpan<byte>(sign |> fromHex))
+
+                        if verified then
+                            let dcode =
+                                data |> fromHex |> Text.Encoding.ASCII.GetString
+
+                            let ts = dcode.Split('.').[1] |> int64
+                            let now = DateTimeOffset.Now
+                            if (now.ToUnixTimeSeconds() - ts < 1L) then
+                                let user = SUser.LogIOU uid
+                                uRef <! UserCmd.LoginUser user
+                                client.PostAsync(Response "public key verified, logged in")
+                                |> Async.Start
+                            else
+                                client.PostAsync(Response "public key verify timeout, try login again")
+                                |> Async.Start
+                        else
+                            client.PostAsync(Response "public key verify error")
+                            |> Async.Start
+                    | UserLogout uid ->
+                        let user = SUser.LogIOU uid
+                        uRef <! UserCmd.LogoutUser user
+                    | UserFollow (uid, fid) -> fRef <! FollowCmd.FollowUserIdCmd uid fid
+                    | UserTweet (uid, tw) -> tRef <! TweetTweet uid tw
+                    | UserRt (uid, rtid, rtuid) -> tRef <! TweetRT uid rtid rtuid
+                    | QTofUser uid -> qRef <! QueryMsg.QueryByUserId uid
+                    | QTofHashTag ht -> qRef <! QueryMsg.QueryByHashtag ht
+                    | QTofMention uid -> qRef <! QueryMsg.QueryByMentionUid uid
+                    | _ ->
+                        client.PostAsync(Response "not impl-ed")
+                        |> Async.Start
+                | :? Tweet as tw ->
+                    client.PostAsync(T(sprintf "got tweet: %A" tw))
+                    |> Async.Start
+                | :? SUser as u ->
+                    client.PostAsync(URS(u.Id, u.Name, u.PubKey))
+                    |> Async.Start
+                | :? EngineResp as er ->
+                    let resp =
+                        match er.ERType with
+                        | true -> ERS er.Message
+                        | false -> ERF er.Message
+
+                    client.PostAsync resp |> Async.Start
+                | msg ->
+                    let resp =
+                        Response(sprintf "catch all resp: %s" (sprintf "%A" msg))
+
+                    client.PostAsync resp |> Async.Start
+
+                return! loop sender
+            }
+
+        loop None
+
     let wsConnector (client: WebSocketClient<S2CMessage, C2SMessage>) =
         try
-            let wsClientActor (client: WebSocketClient<S2CMessage, C2SMessage>) (mailbox: Actor<obj>) =
-                let tRef =
-                    mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-tweet")
-
-                let uRef =
-                    mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-user")
-
-                let fRef =
-                    mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-follow")
-
-                let qRef =
-                    mailbox.Context.ActorSelection("akka.tcp://project4@localhost:8777/user/service-query")
-
-                let rec loop sender =
-                    actor {
-                        let! untypeMessage = mailbox.Receive()
-
-                        match untypeMessage with
-                        | :? C2SMessage as msg ->
-                            match msg with
-                            | Request s ->
-                                logErrorf mailbox "get msg: %A" s
-                                tRef <! TweetTweet s
-                                client.PostAsync(Response s) |> Async.Start
-                            | UserReg pkey ->
-                                let user = SUser.Create pkey
-                                uRef <! UserCmd.RegisterUser user
-                            | UserChalleng uid ->
-                                let chal = Array.zeroCreate 32
-                                let rng = new RNGCryptoServiceProvider()
-                                rng.GetNonZeroBytes chal
-                                client.PostAsync(Challenge(uid, (chal |> ByteToHex)))
-                                |> Async.Start
-
-                            | UserLogin (uid, data, sign) ->
-                                let udb = DB.P4GetCollection<SUser> "user"
-
-                                let user =
-                                    udb.FindAsync(sprintf "{'_id': '%s'}" uid
-                                                  |> BsonDocument.Parse
-                                                  |> BsonDocumentFilterDefinition).GetAwaiter().GetResult()
-                                       .ToEnumerable()
-                                    |> List.ofSeq
-
-
-                                let hk = user.[0].PubKey |> fromHex
-                                let alg = SignatureAlgorithm.Ed25519
-
-                                let key =
-                                    PublicKey.Import(alg, ReadOnlySpan<byte>(hk), KeyBlobFormat.RawPublicKey)
-
-                                let verified =
-                                    alg.Verify
-                                        (key, ReadOnlySpan<byte>(data |> fromHex), ReadOnlySpan<byte>(sign |> fromHex))
-
-                                if verified then
-                                    let dcode =
-                                        data |> fromHex |> Text.Encoding.ASCII.GetString
-
-                                    let ts = dcode.Split('.').[1] |> int64
-                                    let now = DateTimeOffset.Now
-                                    if (now.ToUnixTimeSeconds() - ts < 1L) then
-                                        let user = SUser.LogIOU uid
-                                        uRef <! UserCmd.LoginUser user
-                                        client.PostAsync(Response "public key verified, logged in")
-                                        |> Async.Start
-                                    else
-                                        client.PostAsync(Response "public key verify timeout, try login again")
-                                        |> Async.Start
-                                else
-                                    client.PostAsync(Response "public key verify error")
-                                    |> Async.Start
-                            | UserLogout uid ->
-                                let user = SUser.LogIOU uid
-                                uRef <! UserCmd.LogoutUser user
-                            | UserFollow (uid, fid) -> fRef <! FollowCmd.FollowUserIdCmd uid fid
-                            | UserTweet (uid, tw) -> tRef <! TweetTweet uid tw
-                            | QTofUser uid -> qRef <! QueryMsg.QueryByUserId uid
-                            | QTofHashTag ht -> qRef <! QueryMsg.QueryByHashtag ht
-                            | QTofMention uid -> qRef <! QueryMsg.QueryByMentionUid uid
-                            | _ ->
-                                client.PostAsync(Response "not impl-ed")
-                                |> Async.Start
-                        | :? Tweet as tw ->
-                            client.PostAsync(Response(Json.Serialize tw))
-                            |> Async.Start
-                        | :? SUser as u ->
-                            client.PostAsync(URS(u.Id, u.Name, u.PubKey))
-                            |> Async.Start
-                        | msg ->
-                            let resp =
-                                Response(sprintf "catch all resp: %A" msg)
-
-                            client.PostAsync resp |> Async.Start
-
-                        return! loop sender
-                    }
-
-                loop None
-
             let actorId =
                 sprintf "ws-client-%s" client.Connection.Context.Connection.Id
 
