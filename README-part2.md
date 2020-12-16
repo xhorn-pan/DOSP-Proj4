@@ -10,6 +10,30 @@ Akka actor.
 ## links
 [github](https://github.com/xhorn-pan/DOSP-Proj4)
 [video](https://youtu.be/bpCuoWTF1M8) 
+### how to run
+almost same as part 1
+prepare environment
+
+```
+dotnet restore
+dotnet tool install Paket --version 6.0.0-beta1
+dotnet paket install
+
+```
+
+#start engine(server part)
+
+```
+cd DOSP.P4.Server 
+dotnet run -- --seed
+```
+
+```
+cd DOSP.P4.Web
+dotnet run
+```
+
+then open http://localhost:5000
 
 ## code explainations
 
