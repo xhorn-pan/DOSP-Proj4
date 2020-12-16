@@ -21,10 +21,10 @@ The websocket client is implemented in [DOSP.P4.Web/Frontend/WebSocketClient.fs]
 When the actor in the client side(which is also the server side in websharper's view.) 
 receive the message from the akka.net cluster, it need transfer the messages to `S2CMessage`.
 When it receive from websocket, it need to transfer the `C2SMessage` to the akka message.
-
+```text
                   akka messages           transfer function        websocket message
  Akka cluster server <---> Akka cluster client <---> websokect server <---> websokect client
-
+```
 The transfer function is in the [`wsClientActor`](https://github.com/xhorn-pan/DOSP-Proj4/blob/cc60c3f8abd6ce1bb1c21da0f5944a744ecfc3d7/DOSP.P4.Web/Backend/WebSocketServer.fs#L90) actor. 
 
 The JSON message for the communication of the Server-Client as follow
